@@ -1,0 +1,26 @@
+{
+  "name": "backend",
+  "private": true,
+  "version": "1.0.0",
+  "main": "src/server/index.js",
+  "scripts": {
+    "dev": "nodemon src/server/index.js",
+    "start": "node src/server/index.js",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "bcryptjs": "latest",
+    "cors": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "express-rate-limit": "latest",
+    "jsonwebtoken": "latest",
+    "mongoose": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "jest": "latest",
+    "nodemon": "latest",
+    "supertest": "latest"
+  }
+}
