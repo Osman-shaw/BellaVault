@@ -3,8 +3,9 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev": "cross-env NEXT_DISABLE_SWC_NATIVE=1 next dev",
-    "build": "cross-env NEXT_DISABLE_SWC_NATIVE=1 next build",
+    "dev": "cross-env IS_WEBPACK_TEST=1 NEXT_DISABLE_SWC_NATIVE=1 node ./node_modules/next/dist/bin/next dev --webpack",
+    "dev:fresh": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\" && cross-env IS_WEBPACK_TEST=1 NEXT_DISABLE_SWC_NATIVE=1 node ./node_modules/next/dist/bin/next dev --webpack",
+    "build": "cross-env NEXT_DISABLE_SWC_NATIVE=1 next build --webpack",
     "start": "next start",
     "lint": "next lint"
   },

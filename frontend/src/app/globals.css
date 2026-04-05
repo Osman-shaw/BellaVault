@@ -400,6 +400,14 @@ a {
   color: #b91c1c;
 }
 
+.dashboard-market-source-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--color-muted);
+  max-width: 52rem;
+}
+
 /* Auth method switcher (email vs phone) */
 .auth-method-tabs {
   display: flex;

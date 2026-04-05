@@ -15,6 +15,9 @@ const env = {
   authReturnOtpInResponse:
     process.env.AUTH_RETURN_OTP_IN_RESPONSE === "true" ||
     (nodeEnv !== "production" && process.env.AUTH_RETURN_OTP_IN_RESPONSE !== "false"),
+  /** Server-only. Used for GoldAPI.io / app.goldapi.net precious metal spot prices. Never expose to clients. */
+  goldapiApiKey: process.env.GOLDAPI_API_KEY || "",
+  goldapiBaseUrl: (process.env.GOLDAPI_BASE_URL || "https://app.goldapi.net").replace(/\/$/, ""),
 };
 
 module.exports = { env };

@@ -50,9 +50,17 @@ export interface MarketItem {
 
 export interface LiveMarketResponse {
   gold: MarketItem;
+  /** Present when `GOLDAPI_API_KEY` is configured on the server (XAG/USD spot). */
+  silver?: MarketItem;
+  /** XPT/USD spot from GoldAPI when configured. */
+  platinum?: MarketItem;
+  /** XPD/USD spot from GoldAPI when configured. */
+  palladium?: MarketItem;
   forex: MarketItem;
   sp500: MarketItem;
   nasdaq: MarketItem;
+  /** `goldapi` if metals use GoldAPI; `yahoo` if gold only from Yahoo; `unavailable` on error. */
+  metalsSource?: "goldapi" | "yahoo" | "unavailable";
 }
 
 export type UpdateEntityPayload = Partial<CreateEntityPayload>;
