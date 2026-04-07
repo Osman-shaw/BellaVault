@@ -61,6 +61,15 @@ export interface LiveMarketResponse {
   nasdaq: MarketItem;
   /** `goldapi` if metals use GoldAPI; `yahoo` if gold only from Yahoo; `unavailable` on error. */
   metalsSource?: "goldapi" | "yahoo" | "unavailable";
+  /** Whether server has GOLDAPI_API_KEY configured. */
+  goldapiConfigured?: boolean;
+}
+
+export interface LiveMarketApiResponse {
+  success: boolean;
+  endpoint: string;
+  requestedAt: number;
+  data: LiveMarketResponse;
 }
 
 export type UpdateEntityPayload = Partial<CreateEntityPayload>;
@@ -447,7 +456,7 @@ export const apiService = {
     return request<ReportsOverview>(`/reports/overview${suffix}`);
   },
   getDashboard: () => request<{ totalValue: number; totalPaid: number; balanceDue: number; deals: number }>("/dashboard"),
-  getLiveMarket: () => request<LiveMarketResponse>("/market/live"),
+  getLiveMarket: () => request<LiveMarketApiResponse>("/market/live"),
   login: (payload: { email: string; password: string }) =>
     request<AuthResponse>("/auth/login", {
       method: "POST",

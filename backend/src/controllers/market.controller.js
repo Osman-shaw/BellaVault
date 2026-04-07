@@ -1,4 +1,4 @@
-const { getLiveMarketData } = require("../services/market.service");
+const { getLiveMarketData, getMarketDiagnostics } = require("../services/market.service");
 
 function fallbackBundle() {
   const z = (symbol, name) => ({
@@ -20,12 +20,35 @@ function fallbackBundle() {
 }
 
 async function liveMarket(_req, res) {
+  const endpoint = "/api/market/live";
   try {
     const data = await getLiveMarketData();
-    return res.json(data);
+    return res.json({
+      success: true,
+      endpoint,
+      requestedAt: Date.now(),
+      data,
+    });
   } catch {
-    return res.json(fallbackBundle());
+    return res.json({
+      success: false,
+      endpoint,
+      requestedAt: Date.now(),
+      data: fallbackBundle(),
+    });
   }
 }
 
-module.exports = { liveMarket };
+async function marketDiagnostics(_req, res) {
+  try {
+    const diagnostics = await getMarketDiagnostics();
+    return res.json(diagnostics);
+  } catch (error) {
+    return res.status(500).json({
+      message: "Failed to collect market diagnostics.",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+}
+
+module.exports = { liveMarket, marketDiagnostics };

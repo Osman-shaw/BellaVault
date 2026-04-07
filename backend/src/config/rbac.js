@@ -29,6 +29,7 @@ const PERMISSIONS = {
   "borrows:delete": [ROLES.ADMIN, ROLES.SECRETARY],
   "vault:read": [ROLES.ADMIN, ROLES.SECRETARY, ROLES.ASSOCIATE_DIRECTOR],
   "vault:deposit": [ROLES.ADMIN, ROLES.SECRETARY],
+  "market:diagnostics": [ROLES.ADMIN],
 };
 
 const PUBLIC_PERMISSIONS = new Set([

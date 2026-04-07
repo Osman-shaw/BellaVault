@@ -377,31 +377,78 @@ a {
 
 .dashboard-market-grid {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
 }
 
 .dashboard-market-card {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   align-content: start;
+  padding: 14px;
+  border-radius: 14px;
+  border-color: #dbe4f0;
+  background:
+    radial-gradient(120% 80% at 110% -10%, rgba(194, 65, 12, 0.08) 0%, rgba(194, 65, 12, 0) 45%),
+    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.07);
+}
+
+.dashboard-market-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dashboard-market-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.dashboard-market-name {
+  margin-top: -2px;
 }
 
 .dashboard-market-price {
-  font-size: 1.35rem;
-  font-weight: 700;
+  font-size: 1.48rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .dashboard-market-change--up {
   color: #15803d;
+  font-weight: 700;
 }
 
 .dashboard-market-change--down {
   color: #b91c1c;
+  font-weight: 700;
+}
+
+.dashboard-market-updated {
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.dashboard-market-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 0.75rem;
+  flex-wrap: wrap;
 }
 
 .dashboard-market-source-hint {
-  margin: 0 0 0.75rem;
+  margin: 0;
   font-size: 0.85rem;
   line-height: 1.45;
   color: var(--color-muted);
@@ -1126,4 +1173,114 @@ a {
 .vault-delta-neg {
   color: #b91c1c;
   font-weight: 600;
+}
+
+/* System-wide redesign overrides */
+:root {
+  --color-bg: #f6f8fc;
+  --color-text: #0b1220;
+  --color-muted: #5f6f85;
+  --color-border: #d9e2ef;
+  --color-accent: #b45309;
+  --color-accent-dim: rgba(180, 83, 9, 0.15);
+  --color-accent-hover: #92400e;
+  --color-nav: rgba(255, 255, 255, 0.9);
+  --shadow-md: 0 16px 46px rgba(15, 23, 42, 0.1);
+  --shadow-card: 0 8px 30px rgba(15, 23, 42, 0.08);
+  --radius-lg: 16px;
+  --radius-md: 12px;
+}
+
+body {
+  background:
+    radial-gradient(120% 60% at 15% -10%, rgba(191, 219, 254, 0.28) 0%, rgba(191, 219, 254, 0) 55%),
+    radial-gradient(120% 80% at 100% -20%, rgba(251, 191, 36, 0.16) 0%, rgba(251, 191, 36, 0) 50%),
+    var(--color-bg);
+}
+
+.form-card,
+.form-card--screen,
+.list-card,
+.report-table-wrap,
+.report-chart-wrap,
+.vault-movements-wrap,
+.partner-ledger-table-wrap {
+  border-radius: var(--radius-lg);
+  border-color: var(--color-border);
+}
+
+.form-card {
+  padding: 16px 18px;
+}
+
+.form-card--screen {
+  padding: 20px 22px;
+}
+
+.form-control {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #c8d3e4;
+  background: #fbfdff;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.form-control:focus {
+  background: #fff;
+  box-shadow: 0 0 0 4px var(--color-accent-dim);
+}
+
+.form-button {
+  border-radius: 11px;
+  background: linear-gradient(135deg, #0f172a 0%, #172b4d 100%);
+  transition: background 0.18s ease, transform 0.1s ease, box-shadow 0.18s ease;
+}
+
+.form-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #172b4d 0%, #22365e 100%);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+}
+
+.screen-title {
+  background: linear-gradient(135deg, #0b1220 0%, #b45309 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.app-nav {
+  border-bottom: 1px solid rgba(205, 216, 231, 0.9);
+}
+
+.app-nav-link {
+  border-radius: 10px;
+  border: 1px solid transparent;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.app-nav-link:hover {
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+.app-nav-link.active {
+  background: linear-gradient(135deg, #0f172a 0%, #1f3558 100%);
+}
+
+.list-card {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #d9e2ef;
+}
+
+.list-card:hover {
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.1);
+}
+
+.report-table th {
+  background: #f4f7fc;
+}
+
+.report-table th,
+.report-table td {
+  padding: 10px 12px;
 }
