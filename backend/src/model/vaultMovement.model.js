@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const vaultMovementSchema = new mongoose.Schema(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
     delta: { type: Number, required: true },
     balanceAfter: { type: Number, required: true },
     kind: {
@@ -24,6 +25,6 @@ const vaultMovementSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-vaultMovementSchema.index({ createdAt: -1 });
+vaultMovementSchema.index({ tenantId: 1, createdAt: -1 });
 
 module.exports = mongoose.model("VaultMovement", vaultMovementSchema);

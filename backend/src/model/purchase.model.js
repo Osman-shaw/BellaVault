@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const purchaseSchema = new mongoose.Schema(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
     purchaseDate: { type: Date, required: true },
     buyingPrice: { type: Number, required: true, min: 0 },
     weightCarat: { type: Number, required: true, min: 0 },

@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const User = require("../model/user.model");
+const Tenant = require("../model/tenant.model");
 const RefreshToken = require("../model/refreshToken.model");
 const PhoneOtp = require("../model/phoneOtp.model");
 const { env } = require("../config/env");
@@ -17,11 +18,13 @@ const {
   randomToken,
   hashToken,
 } = require("../services/auth.service");
+const { findTenantBySlug, getDefaultTenant } = require("../services/tenantBootstrap.service");
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_MAX_ATTEMPTS = 5;
 
-function authPayload(user) {
+async function authPayload(user) {
+  const tenant = await Tenant.findById(user.tenantId).select("slug name").lean();
   const payload = {
     user: {
       id: user._id.toString(),
@@ -29,6 +32,9 @@ function authPayload(user) {
       email: user.email,
       role: user.role,
       emailVerified: user.emailVerified,
+      tenantId: user.tenantId.toString(),
+      tenantSlug: tenant?.slug,
+      tenantName: tenant?.name,
     },
   };
   if (user.phoneNormalized) {
@@ -54,8 +60,19 @@ function maybeDevOtpResponse(plainCode) {
 }
 
 async function issueSession(user) {
-  const accessToken = signAccessToken({ sub: user._id.toString(), role: user.role, email: user.email });
-  const refreshToken = signRefreshToken({ sub: user._id.toString(), role: user.role, typ: "refresh" });
+  const tidStr = user.tenantId.toString();
+  const accessToken = signAccessToken({
+    sub: user._id.toString(),
+    role: user.role,
+    email: user.email,
+    tid: tidStr,
+  });
+  const refreshToken = signRefreshToken({
+    sub: user._id.toString(),
+    role: user.role,
+    typ: "refresh",
+    tid: tidStr,
+  });
 
   const decoded = verifyAuthToken(refreshToken);
   const expiresAt = new Date(decoded.exp * 1000);
@@ -74,18 +91,22 @@ async function issueSession(user) {
 
 async function register(req, res, next) {
   try {
-    const { fullName, email, password, role } = req.body;
+    const { fullName, email, password, role, tenantSlug } = req.body;
     const emailLower = email.toLowerCase();
+    const tenant = await findTenantBySlug(tenantSlug || "default");
+    if (!tenant) {
+      return res.status(404).json({ message: "Organization not found." });
+    }
 
     const passwordHash = await hashPassword(password);
     const verificationToken = randomToken();
     const tokenHashStored = hashToken(verificationToken);
     const emailVerificationExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    const existing = await User.findOne({ email: emailLower });
+    const existing = await User.findOne({ email: emailLower, tenantId: tenant._id });
     if (existing) {
       if (existing.emailVerified) {
-        return res.status(409).json({ message: "Email already registered." });
+        return res.status(409).json({ message: "Email already registered for this organization." });
       }
 
       existing.fullName = fullName;
@@ -99,11 +120,12 @@ async function register(req, res, next) {
         message:
           "You already started signup with this email. We updated your details—verify your email before login.",
         verificationToken,
-        ...authPayload(existing),
+        ...(await authPayload(existing)),
       });
     }
 
     const user = await User.create({
+      tenantId: tenant._id,
       fullName,
       email: emailLower,
       passwordHash,
@@ -116,7 +138,7 @@ async function register(req, res, next) {
     return res.status(201).json({
       message: "Registration successful. Verify your email before login.",
       verificationToken,
-      ...authPayload(user),
+      ...(await authPayload(user)),
     });
   } catch (error) {
     return next(error);
@@ -125,9 +147,13 @@ async function register(req, res, next) {
 
 async function verifyEmail(req, res, next) {
   try {
-    const { email, token } = req.body;
+    const { email, token, tenantSlug } = req.body;
+    const tenant = await findTenantBySlug(tenantSlug || "default");
+    if (!tenant) {
+      return res.status(404).json({ message: "Organization not found." });
+    }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase(), tenantId: tenant._id });
     if (!user) return res.status(404).json({ message: "User not found." });
 
     if (!user.emailVerificationTokenHash || !user.emailVerificationExpiresAt) {
@@ -155,9 +181,13 @@ async function verifyEmail(req, res, next) {
 
 async function login(req, res, next) {
   try {
-    const { email, password } = req.body;
+    const { email, password, tenantSlug } = req.body;
+    const tenant = await findTenantBySlug(tenantSlug || "default");
+    if (!tenant) {
+      return res.status(404).json({ message: "Organization not found." });
+    }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: email.toLowerCase(), tenantId: tenant._id });
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials." });
     }
@@ -175,7 +205,7 @@ async function login(req, res, next) {
 
     return res.json({
       ...tokens,
-      ...authPayload(user),
+      ...(await authPayload(user)),
     });
   } catch (error) {
     return next(error);
@@ -208,7 +238,7 @@ async function refresh(req, res, next) {
     const tokens = await issueSession(user);
     return res.json({
       ...tokens,
-      ...authPayload(user),
+      ...(await authPayload(user)),
     });
   } catch {
     return res.status(401).json({ message: "Refresh token is invalid or expired." });
@@ -240,7 +270,9 @@ async function phoneRegisterRequest(req, res, next) {
       return res.status(400).json({ message: parsed.message });
     }
 
-    const existing = await User.findOne({ phoneNormalized: parsed.normalized });
+    const defaultTenant = getDefaultTenant();
+
+    const existing = await User.findOne({ phoneNormalized: parsed.normalized, tenantId: defaultTenant._id });
     if (existing && existing.phoneVerified) {
       return res.status(409).json({
         message: "This number is already registered. Sign in with your phone instead.",
@@ -303,14 +335,16 @@ async function phoneRegisterVerify(req, res, next) {
       return res.status(400).json({ message: "Invalid code." });
     }
 
-    const dupPhone = await User.findOne({ phoneNormalized: parsed.normalized });
+    const defaultTenant = getDefaultTenant();
+
+    const dupPhone = await User.findOne({ phoneNormalized: parsed.normalized, tenantId: defaultTenant._id });
     if (dupPhone && dupPhone.phoneVerified) {
       await PhoneOtp.deleteOne({ _id: record._id });
       return res.status(409).json({ message: "This number is already registered." });
     }
 
     const email = syntheticEmailForPhone(parsed.national8).toLowerCase();
-    const emailTaken = await User.findOne({ email });
+    const emailTaken = await User.findOne({ email, tenantId: defaultTenant._id });
     if (emailTaken) {
       await PhoneOtp.deleteOne({ _id: record._id });
       return res.status(409).json({ message: "An account already exists for this number." });
@@ -318,6 +352,7 @@ async function phoneRegisterVerify(req, res, next) {
 
     const passwordHash = await hashPassword(randomToken(32));
     const user = await User.create({
+      tenantId: defaultTenant._id,
       fullName: record.pendingFullName,
       email,
       passwordHash,
@@ -332,7 +367,7 @@ async function phoneRegisterVerify(req, res, next) {
     const tokens = await issueSession(user);
     return res.status(201).json({
       ...tokens,
-      ...authPayload(user),
+      ...(await authPayload(user)),
     });
   } catch (error) {
     return next(error);
@@ -347,7 +382,13 @@ async function phoneLoginRequest(req, res, next) {
       return res.status(400).json({ message: parsed.message });
     }
 
-    const user = await User.findOne({ phoneNormalized: parsed.normalized, phoneVerified: true });
+    const defaultTenant = getDefaultTenant();
+
+    const user = await User.findOne({
+      phoneNormalized: parsed.normalized,
+      phoneVerified: true,
+      tenantId: defaultTenant._id,
+    });
     if (!user) {
       return res.status(404).json({ message: "No verified account for this number. Register first." });
     }
@@ -388,7 +429,13 @@ async function phoneLoginVerify(req, res, next) {
       return res.status(400).json({ message: parsed.message });
     }
 
-    const user = await User.findOne({ phoneNormalized: parsed.normalized, phoneVerified: true });
+    const defaultTenant = getDefaultTenant();
+
+    const user = await User.findOne({
+      phoneNormalized: parsed.normalized,
+      phoneVerified: true,
+      tenantId: defaultTenant._id,
+    });
     if (!user) {
       return res.status(404).json({ message: "No verified account for this number." });
     }
@@ -418,7 +465,7 @@ async function phoneLoginVerify(req, res, next) {
     const tokens = await issueSession(user);
     return res.json({
       ...tokens,
-      ...authPayload(user),
+      ...(await authPayload(user)),
     });
   } catch (error) {
     return next(error);

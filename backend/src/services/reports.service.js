@@ -128,9 +128,13 @@ function peakLowFromBuckets(buckets, valueKey) {
   };
 }
 
-async function aggregatePurchasesDaily(from, to) {
+function tenantMatch(tenantId, extra = {}) {
+  return { tenantId, ...extra };
+}
+
+async function aggregatePurchasesDaily(tenantId, from, to) {
   return Purchase.aggregate([
-    { $match: { purchaseDate: { $gte: from, $lte: to } } },
+    { $match: tenantMatch(tenantId, { purchaseDate: { $gte: from, $lte: to } }) },
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m-%d", date: "$purchaseDate", timezone: "UTC" } },
@@ -144,9 +148,9 @@ async function aggregatePurchasesDaily(from, to) {
   ]);
 }
 
-async function aggregatePurchasesWeekly(from, to) {
+async function aggregatePurchasesWeekly(tenantId, from, to) {
   return Purchase.aggregate([
-    { $match: { purchaseDate: { $gte: from, $lte: to } } },
+    { $match: tenantMatch(tenantId, { purchaseDate: { $gte: from, $lte: to } }) },
     {
       $group: {
         _id: {
@@ -163,9 +167,9 @@ async function aggregatePurchasesWeekly(from, to) {
   ]);
 }
 
-async function aggregatePurchasesMonthly(from, to) {
+async function aggregatePurchasesMonthly(tenantId, from, to) {
   return Purchase.aggregate([
-    { $match: { purchaseDate: { $gte: from, $lte: to } } },
+    { $match: tenantMatch(tenantId, { purchaseDate: { $gte: from, $lte: to } }) },
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m", date: "$purchaseDate", timezone: "UTC" } },
@@ -179,9 +183,9 @@ async function aggregatePurchasesMonthly(from, to) {
   ]);
 }
 
-async function aggregateSalesDaily(from, to) {
+async function aggregateSalesDaily(tenantId, from, to) {
   return Sale.aggregate([
-    { $match: { saleDate: { $gte: from, $lte: to } } },
+    { $match: tenantMatch(tenantId, { saleDate: { $gte: from, $lte: to } }) },
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m-%d", date: "$saleDate", timezone: "UTC" } },
@@ -200,9 +204,9 @@ async function aggregateSalesDaily(from, to) {
   ]);
 }
 
-async function aggregateSalesWeekly(from, to) {
+async function aggregateSalesWeekly(tenantId, from, to) {
   return Sale.aggregate([
-    { $match: { saleDate: { $gte: from, $lte: to } } },
+    { $match: tenantMatch(tenantId, { saleDate: { $gte: from, $lte: to } }) },
     {
       $group: {
         _id: {
@@ -224,9 +228,9 @@ async function aggregateSalesWeekly(from, to) {
   ]);
 }
 
-async function aggregateSalesMonthly(from, to) {
+async function aggregateSalesMonthly(tenantId, from, to) {
   return Sale.aggregate([
-    { $match: { saleDate: { $gte: from, $lte: to } } },
+    { $match: tenantMatch(tenantId, { saleDate: { $gte: from, $lte: to } }) },
     {
       $group: {
         _id: { $dateToString: { format: "%Y-%m", date: "$saleDate", timezone: "UTC" } },
@@ -245,7 +249,7 @@ async function aggregateSalesMonthly(from, to) {
   ]);
 }
 
-async function getReportsOverview(query) {
+async function getReportsOverview(tenantId, query) {
   const { from, to } = normalizeRange(query?.from, query?.to);
 
   const [
@@ -256,12 +260,12 @@ async function getReportsOverview(query) {
     sWeekRaw,
     sMonthRaw,
   ] = await Promise.all([
-    aggregatePurchasesDaily(from, to),
-    aggregatePurchasesWeekly(from, to),
-    aggregatePurchasesMonthly(from, to),
-    aggregateSalesDaily(from, to),
-    aggregateSalesWeekly(from, to),
-    aggregateSalesMonthly(from, to),
+    aggregatePurchasesDaily(tenantId, from, to),
+    aggregatePurchasesWeekly(tenantId, from, to),
+    aggregatePurchasesMonthly(tenantId, from, to),
+    aggregateSalesDaily(tenantId, from, to),
+    aggregateSalesWeekly(tenantId, from, to),
+    aggregateSalesMonthly(tenantId, from, to),
   ]);
 
   const purchasesDaily = mapPurchaseDaily(pDayRaw);

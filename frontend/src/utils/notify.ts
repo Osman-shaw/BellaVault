@@ -1,36 +1,43 @@
 export type NotifyType = "success" | "error" | "info";
 
-interface NotifyPayload {
+export interface NotifyPayload {
   message: string;
   type?: NotifyType;
+  /** Short bold line above the message (rich toast). */
+  headline?: string;
 }
 
 const EVENT_NAME = "bellavault:notify";
 
-export function notify(message: string, type: NotifyType = "info") {
+export function notify(message: string, type: NotifyType = "info", headline?: string) {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent<NotifyPayload>(EVENT_NAME, { detail: { message, type } }));
+  window.dispatchEvent(new CustomEvent<NotifyPayload>(EVENT_NAME, { detail: { message, type, headline } }));
 }
 
-export function notifySuccess(message: string) {
-  notify(message, "success");
+export function notifySuccess(message: string, headline?: string) {
+  notify(message, "success", headline);
 }
 
-export function notifyError(message: string) {
-  notify(message, "error");
+export function notifyError(message: string, headline?: string) {
+  notify(message, "error", headline);
 }
 
-export function notifyInfo(message: string) {
-  notify(message, "info");
+export function notifyInfo(message: string, headline?: string) {
+  notify(message, "info", headline);
 }
 
 export function subscribeNotify(handler: (payload: NotifyPayload) => void) {
   if (typeof window === "undefined") return () => undefined;
 
   const listener = (event: Event) => {
-    const customEvent = event as CustomEvent<NotifyPayload>;
-    if (customEvent.detail?.message) {
-      handler(customEvent.detail);
+    const customEvent = event as CustomEvent<Partial<NotifyPayload> & { message?: string }>;
+    const detail = customEvent.detail;
+    if (detail?.message) {
+      handler({
+        message: detail.message,
+        type: detail.type,
+        headline: detail.headline,
+      });
     }
   };
 

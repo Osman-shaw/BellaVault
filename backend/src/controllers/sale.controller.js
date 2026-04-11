@@ -2,9 +2,9 @@ const mongoose = require("mongoose");
 const Sale = require("../model/sale.model");
 const { applyVaultDelta } = require("../services/vault.service");
 
-async function listSales(_req, res, next) {
+async function listSales(req, res, next) {
   try {
-    const data = await Sale.find({}).sort({ saleDate: -1, createdAt: -1 });
+    const data = await Sale.find({ tenantId: req.tenantId }).sort({ saleDate: -1, createdAt: -1 });
     res.json(data);
   } catch (error) {
     next(error);
@@ -18,7 +18,7 @@ async function createSale(req, res, next) {
     const id = new mongoose.Types.ObjectId();
 
     if (amountReceived !== 0) {
-      await applyVaultDelta(amountReceived, {
+      await applyVaultDelta(req.tenantId, amountReceived, {
         kind: "sale_proceeds",
         label: `Gold sale proceeds — ${buyerName}`,
         refType: "sale",
@@ -26,7 +26,7 @@ async function createSale(req, res, next) {
       });
     }
 
-    const sale = await Sale.create({ ...req.body, _id: id });
+    const sale = await Sale.create({ ...req.body, _id: id, tenantId: req.tenantId });
     res.status(201).json(sale);
   } catch (error) {
     next(error);
@@ -35,7 +35,7 @@ async function createSale(req, res, next) {
 
 async function updateSale(req, res, next) {
   try {
-    const existing = await Sale.findById(req.params.id);
+    const existing = await Sale.findOne({ _id: req.params.id, tenantId: req.tenantId });
     if (!existing) {
       return res.status(404).json({ message: "Sale not found" });
     }
@@ -47,6 +47,7 @@ async function updateSale(req, res, next) {
 
     if (delta !== 0) {
       await applyVaultDelta(
+        req.tenantId,
         delta,
         {
           kind: "sale_proceeds_adjust",
@@ -58,7 +59,7 @@ async function updateSale(req, res, next) {
       );
     }
 
-    const updated = await Sale.findByIdAndUpdate(req.params.id, req.body, {
+    const updated = await Sale.findOneAndUpdate({ _id: req.params.id, tenantId: req.tenantId }, req.body, {
       new: true,
       runValidators: true,
     });
@@ -70,7 +71,7 @@ async function updateSale(req, res, next) {
 
 async function deleteSale(req, res, next) {
   try {
-    const sale = await Sale.findByIdAndDelete(req.params.id);
+    const sale = await Sale.findOneAndDelete({ _id: req.params.id, tenantId: req.tenantId });
     if (!sale) {
       return res.status(404).json({ message: "Sale not found" });
     }
@@ -78,6 +79,7 @@ async function deleteSale(req, res, next) {
     const received = Number(sale.amountReceived) || 0;
     if (received !== 0) {
       await applyVaultDelta(
+        req.tenantId,
         -received,
         {
           kind: "sale_proceeds_reversal",

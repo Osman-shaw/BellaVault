@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useCallback, useMemo, useState } from "react";
 import { AuthInlineLink, AuthLinkRow } from "@/components/auth/AuthLinkRow";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { PasswordStrength } from "@/components/auth/PasswordStrength";
@@ -12,6 +12,7 @@ import { FormInput } from "@/components/form/FormInput";
 import { FormSelect } from "@/components/form/FormSelect";
 import { apiService } from "@/services/apiService";
 import { writeSession } from "@/state/auth";
+import { AuthVaultCelebration, type VaultCelebrationMode } from "@/components/vault/AuthVaultCelebration";
 
 function passwordChecks(password: string) {
   return {
@@ -31,6 +32,7 @@ export default function RegisterPage() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [tenantSlug, setTenantSlug] = useState("default");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"admin" | "secretary" | "associate_director">("secretary");
   const [message, setMessage] = useState("");
@@ -43,6 +45,19 @@ export default function RegisterPage() {
   const [phoneStep, setPhoneStep] = useState<0 | 1>(0);
   const [otp, setOtp] = useState("");
   const [devOtp, setDevOtp] = useState("");
+
+  const [vaultOpen, setVaultOpen] = useState(false);
+  const [vaultMode, setVaultMode] = useState<VaultCelebrationMode>("welcome");
+  const [vaultKey, setVaultKey] = useState(0);
+
+  const finishWelcome = useCallback(() => {
+    router.push("/deals");
+    router.refresh();
+  }, [router]);
+
+  const finishRegistered = useCallback(() => {
+    setVaultOpen(false);
+  }, []);
 
   const checks = useMemo(() => passwordChecks(password), [password]);
   const strong = Object.values(checks).every(Boolean);
@@ -59,9 +74,12 @@ export default function RegisterPage() {
 
     try {
       setLoading(true);
-      const response = await apiService.register({ fullName, email, password, role });
+      const response = await apiService.register({ fullName, email, password, role, tenantSlug });
       setVerificationToken(response.verificationToken);
       setMessage(response.message || "Check your email (or use the dev token below), then verify before login.");
+      setVaultMode("registered");
+      setVaultKey((k) => k + 1);
+      setVaultOpen(true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Registration failed.");
     } finally {
@@ -102,8 +120,9 @@ export default function RegisterPage() {
         code: otp.replace(/\D/g, "").slice(0, 6),
       });
       writeSession(session);
-      router.push("/deals");
-      router.refresh();
+      setVaultMode("welcome");
+      setVaultKey((k) => k + 1);
+      setVaultOpen(true);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not complete signup.");
     } finally {
@@ -122,6 +141,14 @@ export default function RegisterPage() {
 
   return (
     <main>
+      {vaultOpen ? (
+        <AuthVaultCelebration
+          key={vaultKey}
+          open={vaultOpen}
+          mode={vaultMode}
+          onComplete={vaultMode === "welcome" ? finishWelcome : finishRegistered}
+        />
+      ) : null}
       <AuthShell eyebrow="New account">
         <div className="auth-method-tabs" role="tablist" aria-label="Registration method">
           <button
@@ -167,6 +194,14 @@ export default function RegisterPage() {
               type="email"
               autoComplete="email"
               required
+            />
+            <FormInput
+              label="Organization slug"
+              value={tenantSlug}
+              onChange={setTenantSlug}
+              placeholder="default"
+              type="text"
+              autoComplete="organization"
             />
             <FormInput
               label="Password"

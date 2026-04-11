@@ -17,7 +17,9 @@ import { can } from "@/state/rbac";
 import { useRole } from "@/state/useRole";
 import { formatDateTimeUtc, formatMoneyLeones } from "@/utils/formatDisplay";
 import { messageFeedbackVariant } from "@/utils/messageFeedbackVariant";
-import { notifyError, notifySuccess } from "@/utils/notify";
+import { notifyError } from "@/utils/notify";
+import { actionFeedback } from "@/utils/actionFeedback";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 const POLL_MS = 20000;
 
@@ -71,7 +73,7 @@ export function VaultScreen() {
       setDepositAmount("");
       setDepositNote("");
       setMessage(res.message || "Deposit recorded.");
-      notifySuccess("Vault updated.");
+      actionFeedback.vaultDeposit();
       await refresh();
     } catch (err) {
       const text = err instanceof Error ? err.message : "Deposit failed.";
@@ -103,7 +105,10 @@ export function VaultScreen() {
 
       <div className="vault-balance-card">
         {loading && !summary ? (
-          <div className="skeleton-line lg" style={{ maxWidth: 280 }} />
+          <div className="page-loading" style={{ padding: "1.25rem 0" }}>
+            <LoadingSpinner size="md" />
+            <span>Loading vault balance…</span>
+          </div>
         ) : (
           <>
             <div className="vault-balance-label">Cash available</div>
@@ -136,7 +141,10 @@ export function VaultScreen() {
       <ScreenSectionTitle>Recent movement</ScreenSectionTitle>
       <div className="vault-movements-wrap">
         {loading && movements.length === 0 ? (
-          <p className="screen-empty">Loading activity…</p>
+          <div className="page-loading" style={{ padding: "1.5rem" }}>
+            <LoadingSpinner size="md" />
+            <span>Loading activity…</span>
+          </div>
         ) : movements.length === 0 ? (
           <p className="screen-empty">No vault activity yet. Add a deposit or create a purchase or sale.</p>
         ) : (

@@ -26,11 +26,13 @@ function enrichRows(rows) {
 async function listPartnerLedger(req, res, next) {
   try {
     const { entityId } = req.params;
-    const entity = await Entity.findById(entityId);
+    const entity = await Entity.findOne({ _id: entityId, tenantId: req.tenantId });
     if (!entity) {
       return res.status(404).json({ message: "Partner not found" });
     }
-    const rows = await PartnerLedger.find({ entityId }).sort({ recordedAt: 1, _id: 1 }).lean();
+    const rows = await PartnerLedger.find({ entityId, tenantId: req.tenantId })
+      .sort({ recordedAt: 1, _id: 1 })
+      .lean();
     res.json(enrichRows(rows));
   } catch (error) {
     next(error);
@@ -40,11 +42,12 @@ async function listPartnerLedger(req, res, next) {
 async function createPartnerLedgerEntry(req, res, next) {
   try {
     const { entityId } = req.params;
-    const entity = await Entity.findById(entityId);
+    const entity = await Entity.findOne({ _id: entityId, tenantId: req.tenantId });
     if (!entity) {
       return res.status(404).json({ message: "Partner not found" });
     }
     const entry = await PartnerLedger.create({
+      tenantId: req.tenantId,
       entityId,
       recordedAt: req.body.recordedAt,
       moneyInvested: req.body.moneyInvested ?? 0,
@@ -65,11 +68,11 @@ async function createPartnerLedgerEntry(req, res, next) {
 async function deletePartnerLedgerEntry(req, res, next) {
   try {
     const { entityId, entryId } = req.params;
-    const entity = await Entity.findById(entityId);
+    const entity = await Entity.findOne({ _id: entityId, tenantId: req.tenantId });
     if (!entity) {
       return res.status(404).json({ message: "Partner not found" });
     }
-    const deleted = await PartnerLedger.findOneAndDelete({ _id: entryId, entityId });
+    const deleted = await PartnerLedger.findOneAndDelete({ _id: entryId, entityId, tenantId: req.tenantId });
     if (!deleted) {
       return res.status(404).json({ message: "Ledger entry not found" });
     }
@@ -79,8 +82,4 @@ async function deletePartnerLedgerEntry(req, res, next) {
   }
 }
 
-module.exports = {
-  listPartnerLedger,
-  createPartnerLedgerEntry,
-  deletePartnerLedgerEntry,
-};
+module.exports = { listPartnerLedger, createPartnerLedgerEntry, deletePartnerLedgerEntry };

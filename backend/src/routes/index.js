@@ -10,6 +10,7 @@ const borrowRoutes = require("./borrow.routes");
 const vaultRoutes = require("./vault.routes");
 const { dashboard } = require("../controllers/deal.controller");
 const { requirePermission } = require("../middleware/authorize");
+const { resolveTenant } = require("../middleware/resolveTenant");
 
 const router = express.Router();
 
@@ -17,6 +18,7 @@ router.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 router.use("/auth", authRoutes);
+router.use(resolveTenant);
 router.use("/market", marketRoutes);
 router.get("/dashboard", requirePermission("dashboard:read"), dashboard);
 router.use("/deals", dealRoutes);

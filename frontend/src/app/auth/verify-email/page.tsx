@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { AuthInlineLink, AuthLinkRow } from "@/components/auth/AuthLinkRow";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { AuthFeedback } from "@/components/auth/AuthFeedback";
@@ -12,9 +12,15 @@ import { apiService } from "@/services/apiService";
 export default function VerifyEmailPage() {
   const [email, setEmail] = useState("");
   const [token, setToken] = useState("");
+  const [tenantSlug, setTenantSlug] = useState("default");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tenant");
+    if (t && t.trim().length >= 2) setTenantSlug(t.trim().toLowerCase());
+  }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -23,7 +29,7 @@ export default function VerifyEmailPage() {
 
     try {
       setLoading(true);
-      const response = await apiService.verifyEmail({ email, token });
+      const response = await apiService.verifyEmail({ email, token, tenantSlug });
       setSuccess(response.message);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed.");
@@ -57,6 +63,14 @@ export default function VerifyEmailPage() {
             placeholder="Paste token from registration"
             autoComplete="one-time-code"
             required
+          />
+          <FormInput
+            label="Organization slug"
+            value={tenantSlug}
+            onChange={setTenantSlug}
+            placeholder="default"
+            type="text"
+            autoComplete="organization"
           />
           <FormButton variant="auth" label="Confirm email" loadingLabel="Verifying…" loading={loading} />
         </FormCard>

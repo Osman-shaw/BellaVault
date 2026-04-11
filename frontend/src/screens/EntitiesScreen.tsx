@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, Fragment, useCallback, useEffect, useState } from "react";
 import { apiService, Entity, PartnerLedgerRow } from "@/services/apiService";
 import { FormButton } from "@/components/form/FormButton";
 import { FormCard } from "@/components/form/FormCard";
@@ -18,8 +18,11 @@ import {
 import { can } from "@/state/rbac";
 import { useRole } from "@/state/useRole";
 import { messageFeedbackVariant } from "@/utils/messageFeedbackVariant";
-import { notifyError, notifySuccess } from "@/utils/notify";
+import { notifyError } from "@/utils/notify";
+import { actionFeedback } from "@/utils/actionFeedback";
 import { formatMoneyLeones } from "@/utils/formatDisplay";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { DeleteIconButton, EditIconButton, ViewIconButton } from "@/components/ui/CrudIconButtons";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -59,6 +62,7 @@ export function EntitiesScreen() {
   const { role } = useRole();
   const canRead = can(role, "entities:read");
   const canCreate = can(role, "entities:create");
+  const canUpdate = can(role, "entities:update");
   const canDelete = can(role, "entities:delete");
 
   const [entities, setEntities] = useState<Entity[]>([]);
@@ -77,6 +81,13 @@ export function EntitiesScreen() {
   const [ledgerTime, setLedgerTime] = useState(defaultTimeInputValue);
   const [ledgerInvested, setLedgerInvested] = useState("");
   const [ledgerReceived, setLedgerReceived] = useState("");
+
+  const [viewingEntityId, setViewingEntityId] = useState<string | null>(null);
+  const [editingEntityId, setEditingEntityId] = useState<string | null>(null);
+  const [editEntityName, setEditEntityName] = useState("");
+  const [editEntityPhone, setEditEntityPhone] = useState("");
+  const [editEntityNotes, setEditEntityNotes] = useState("");
+  const [entityEditLoading, setEntityEditLoading] = useState(false);
 
   const canManageLedger = canCreate;
 
@@ -143,7 +154,7 @@ export function EntitiesScreen() {
       setLedgerReceived("");
       setLedgerDate(defaultDateInputValue());
       setLedgerTime(defaultTimeInputValue());
-      notifySuccess("Capital record saved.");
+      actionFeedback.ledgerSaved();
       await loadLedger(ledgerEntityId);
     } catch (error) {
       notifyError(error instanceof Error ? error.message : "Failed to save record.");
@@ -157,7 +168,7 @@ export function EntitiesScreen() {
     if (!window.confirm("Remove this capital record? Running totals will update.")) return;
     try {
       await apiService.deletePartnerLedgerEntry(ledgerEntityId, entryId);
-      notifySuccess("Record removed.");
+      actionFeedback.ledgerRemoved();
       await loadLedger(ledgerEntityId);
     } catch (error) {
       notifyError(error instanceof Error ? error.message : "Failed to remove record.");
@@ -184,7 +195,7 @@ export function EntitiesScreen() {
       setPhone("");
       setNotes("");
       setMessage("Partner created successfully.");
-      notifySuccess("Partner created successfully.");
+      actionFeedback.partnerCreated();
       await loadEntities();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Failed to create partner.";
@@ -195,11 +206,52 @@ export function EntitiesScreen() {
     }
   }
 
+  function startEditEntity(en: Entity) {
+    setEditingEntityId(en._id);
+    setEditEntityName(en.name);
+    setEditEntityPhone(en.phone ?? "");
+    setEditEntityNotes(en.notes ?? "");
+    setViewingEntityId(null);
+  }
+
+  function cancelEntityEdit() {
+    setEditingEntityId(null);
+  }
+
+  async function handleSaveEntity(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingEntityId) return;
+    if (editEntityName.trim().length < 2) {
+      setMessage("Partner name must be at least 2 characters.");
+      return;
+    }
+    try {
+      setEntityEditLoading(true);
+      await apiService.updateEntity(editingEntityId, {
+        name: editEntityName.trim(),
+        phone: editEntityPhone.trim() || undefined,
+        notes: editEntityNotes.trim() || undefined,
+      });
+      setEditingEntityId(null);
+      setMessage("Partner updated.");
+      actionFeedback.partnerUpdated();
+      await loadEntities();
+      await loadLedger(ledgerEntityId);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Failed to update partner.";
+      setMessage(text);
+      notifyError(text);
+    } finally {
+      setEntityEditLoading(false);
+    }
+  }
+
   async function handleDeleteEntity(id: string) {
+    if (!window.confirm("Delete this partner and related data? This cannot be undone.")) return;
     try {
       await apiService.deleteEntity(id);
       await loadEntities();
-      notifySuccess("Partner deleted.");
+      actionFeedback.partnerDeleted();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Failed to delete partner.";
       setMessage(text);
@@ -278,7 +330,10 @@ export function EntitiesScreen() {
           ) : null}
           <div className="partner-ledger-table-wrap">
             {ledgerLoading ? (
-              <p className="partner-ledger-empty">Loading records…</p>
+              <div className="page-loading" style={{ padding: "1.5rem" }}>
+                <LoadingSpinner size="md" />
+                <span>Loading ledger…</span>
+              </div>
             ) : ledgerRows.length === 0 ? (
               <p className="partner-ledger-empty">No capital records for this partner yet.</p>
             ) : (
@@ -305,9 +360,7 @@ export function EntitiesScreen() {
                       <td>{formatMoneyLeones(row.remainingBalance)}</td>
                       {canManageLedger ? (
                         <td className="partner-ledger-actions">
-                          <button type="button" className="btn-ghost" onClick={() => handleDeleteLedgerEntry(row._id)}>
-                            Remove
-                          </button>
+                          <DeleteIconButton label="Remove ledger row" onClick={() => handleDeleteLedgerEntry(row._id)} />
                         </td>
                       ) : null}
                     </tr>
@@ -320,33 +373,82 @@ export function EntitiesScreen() {
       )}
 
       <ScreenSectionTitle>Directory</ScreenSectionTitle>
-      <div className="list-grid">
-        {fetching
-          ? Array.from({ length: 4 }).map((_, index) => (
-              <article key={index} className="skeleton-card">
-                <div className="skeleton-line md" />
-                <div className="skeleton-line lg" />
-                <div className="skeleton-line sm" />
-                <div className="skeleton-shimmer" />
-              </article>
-            ))
-          : entities.map((entity) => (
-              <article key={entity._id} className="list-card">
-                <div className="list-card__main">
-                  <div className="list-card__title">{entity.name}</div>
-                  <div className="list-card__meta">{entity.phone ? entity.phone : "No phone on file"}</div>
-                </div>
-                <div className="list-card__actions">
-                  {canDelete ? (
-                    <button type="button" className="danger-button" onClick={() => handleDeleteEntity(entity._id)}>
-                      Delete
-                    </button>
-                  ) : null}
-                </div>
-              </article>
-            ))}
-        {!fetching && entities.length === 0 ? <ScreenEmpty>No partners yet.</ScreenEmpty> : null}
-      </div>
+      {fetching ? (
+        <div className="page-loading">
+          <LoadingSpinner size="lg" />
+          <span>Loading partners…</span>
+        </div>
+      ) : entities.length === 0 ? (
+        <ScreenEmpty>No partners yet.</ScreenEmpty>
+      ) : (
+        <div className="crud-table-wrap">
+          <table className="crud-table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Phone</th>
+                <th scope="col">Notes</th>
+                <th scope="col" className="crud-table__actions">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {entities.map((entity) => {
+                const isEditing = editingEntityId === entity._id && canUpdate;
+                const colCount = 4;
+                return (
+                  <Fragment key={entity._id}>
+                    <tr>
+                      <td>{entity.name}</td>
+                      <td>{entity.phone ?? "—"}</td>
+                      <td>{entity.notes ? (entity.notes.length > 60 ? `${entity.notes.slice(0, 60)}…` : entity.notes) : "—"}</td>
+                      <td className="crud-table__actions">
+                        <div className="crud-table__actions-inner">
+                          <ViewIconButton
+                            label={viewingEntityId === entity._id ? "Hide details" : "View full notes"}
+                            onClick={() => setViewingEntityId((id) => (id === entity._id ? null : entity._id))}
+                          />
+                          {canUpdate ? (
+                            <EditIconButton label="Edit partner" onClick={() => startEditEntity(entity)} disabled={isEditing} />
+                          ) : null}
+                          {canDelete ? <DeleteIconButton label="Delete partner" onClick={() => handleDeleteEntity(entity._id)} /> : null}
+                        </div>
+                      </td>
+                    </tr>
+                    {viewingEntityId === entity._id ? (
+                      <tr className="crud-detail-row">
+                        <td colSpan={colCount}>
+                          <strong>Notes:</strong> {entity.notes?.trim() ? entity.notes : "No notes on file."}
+                        </td>
+                      </tr>
+                    ) : null}
+                    {isEditing ? (
+                      <tr className="crud-table-row--edit">
+                        <td colSpan={colCount}>
+                          <form className="list-form-stack" onSubmit={handleSaveEntity}>
+                            <div className="form-grid form-grid--2col-sm">
+                              <FormInput label="Name" value={editEntityName} onChange={setEditEntityName} placeholder="Partner name" required />
+                              <FormInput label="Phone" value={editEntityPhone} onChange={setEditEntityPhone} placeholder="Optional" />
+                              <FormTextarea label="Notes" rows={3} value={editEntityNotes} onChange={setEditEntityNotes} placeholder="Optional" />
+                            </div>
+                            <div className="list-form-actions">
+                              <FormButton label="Save partner" loadingLabel="Saving…" loading={entityEditLoading} />
+                              <button type="button" className="btn-ghost" onClick={cancelEntityEdit}>
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </AppScreen>
   );
 }

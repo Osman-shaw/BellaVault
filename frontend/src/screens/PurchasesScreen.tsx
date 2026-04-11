@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Fragment, useEffect, useState } from "react";
 import { apiService, Purchase, PurchaseStatus } from "@/services/apiService";
 import { FormButton } from "@/components/form/FormButton";
 import { FormCard } from "@/components/form/FormCard";
@@ -17,9 +17,12 @@ import {
 } from "@/components/layout/AppScreen";
 import { can } from "@/state/rbac";
 import { useRole } from "@/state/useRole";
-import { formatDateUtc } from "@/utils/formatDisplay";
+import { formatDateTimeUtc, formatDateUtc } from "@/utils/formatDisplay";
 import { messageFeedbackVariant } from "@/utils/messageFeedbackVariant";
-import { notifyError, notifySuccess } from "@/utils/notify";
+import { notifyError } from "@/utils/notify";
+import { actionFeedback } from "@/utils/actionFeedback";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { DeleteIconButton, EditIconButton, ViewIconButton } from "@/components/ui/CrudIconButtons";
 
 const statuses: PurchaseStatus[] = ["pending", "paid"];
 
@@ -60,6 +63,7 @@ export function PurchasesScreen() {
   const [editStatus, setEditStatus] = useState<PurchaseStatus>("pending");
   const [editAmountReceived, setEditAmountReceived] = useState("");
   const [editLoading, setEditLoading] = useState(false);
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   async function loadPurchases() {
     try {
@@ -79,6 +83,7 @@ export function PurchasesScreen() {
   }, [canRead]);
 
   function startEdit(p: Purchase) {
+    setViewingId(null);
     setEditingId(p._id);
     setEditPurchaseDate(toDateInputValue(p.purchaseDate));
     setEditBuyingPrice(String(p.buyingPrice));
@@ -145,7 +150,7 @@ export function PurchasesScreen() {
       setStatus("pending");
       setAmountReceived("");
       setMessage("Purchase recorded.");
-      notifySuccess("Purchase recorded.");
+      actionFeedback.purchaseCreated();
       await loadPurchases();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Failed to create purchase.";
@@ -198,7 +203,7 @@ export function PurchasesScreen() {
       });
       setEditingId(null);
       setMessage("Purchase updated.");
-      notifySuccess("Purchase updated.");
+      actionFeedback.purchaseUpdated();
       await loadPurchases();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Failed to update purchase.";
@@ -210,10 +215,11 @@ export function PurchasesScreen() {
   }
 
   async function handleDelete(id: string) {
+    if (!window.confirm("Delete this purchase record?")) return;
     try {
       await apiService.deletePurchase(id);
       await loadPurchases();
-      notifySuccess("Purchase deleted.");
+      actionFeedback.purchaseDeleted();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Failed to delete purchase.";
       setMessage(text);
@@ -274,68 +280,113 @@ export function PurchasesScreen() {
         <ScreenFeedback variant={messageFeedbackVariant(message)}>{message}</ScreenFeedback>
       ) : null}
       <ScreenSectionTitle>Records</ScreenSectionTitle>
-      <div className="list-grid">
-        {fetching
-          ? Array.from({ length: 4 }).map((_, index) => (
-              <article key={index} className="skeleton-card">
-                <div className="skeleton-line md" />
-                <div className="skeleton-line lg" />
-                <div className="skeleton-line sm" />
-                <div className="skeleton-shimmer" />
-              </article>
-            ))
-          : purchases.map((p) =>
-              editingId === p._id && canUpdate ? (
-                <article key={p._id} className="list-card list-card--edit">
-                  <form className="list-form-stack" onSubmit={handleSaveEdit}>
-                    <FormInput type="date" placeholder="Purchase date" value={editPurchaseDate} onChange={setEditPurchaseDate} required />
-                    <FormInput type="number" step="any" min="0" placeholder="Buying price" value={editBuyingPrice} onChange={setEditBuyingPrice} required />
-                    <FormInput type="number" step="any" min="0" placeholder="Weight (carat)" value={editWeightCarat} onChange={setEditWeightCarat} required />
-                    <FormInput placeholder="Client name" value={editClientName} onChange={setEditClientName} required />
-                    <FormInput placeholder="Contact" value={editClientContact} onChange={setEditClientContact} required />
-                    <FormSelect
-                      value={editStatus}
-                      onChange={(v) => setEditStatus(v as PurchaseStatus)}
-                      options={statuses.map((s) => ({ label: s, value: s }))}
-                    />
-                    <FormInput type="number" step="any" min="0" placeholder="Amount received" value={editAmountReceived} onChange={setEditAmountReceived} />
-                    <div className="list-form-actions">
-                      <FormButton label="Save" loadingLabel="Saving..." loading={editLoading} />
-                      <button type="button" className="btn-ghost" onClick={cancelEdit}>
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                </article>
-              ) : (
-                <article key={p._id} className="list-card">
-                  <div className="list-card__main">
-                    <div className="list-card__title">
-                      {p.clientName} · {p.clientContact}
-                    </div>
-                    <div className="list-card__meta">
-                      {formatDateUtc(p.purchaseDate)} · {p.weightCarat} ct · buy Le {p.buyingPrice.toFixed(2)} · received Le{" "}
-                      {Number(p.amountReceived).toFixed(2)}
-                    </div>
-                    <StatusPill tone={purchaseStatusTone(p.status)}>{p.status}</StatusPill>
-                  </div>
-                  <div className="list-card__actions">
-                    {canUpdate ? (
-                      <button type="button" className="btn-ghost" onClick={() => startEdit(p)}>
-                        Edit
-                      </button>
+      {fetching ? (
+        <div className="page-loading">
+          <LoadingSpinner size="lg" />
+          <span>Loading purchases…</span>
+        </div>
+      ) : purchases.length === 0 ? (
+        <ScreenEmpty>No gold purchases yet.</ScreenEmpty>
+      ) : (
+        <div className="crud-table-wrap">
+          <table className="crud-table">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Client</th>
+                <th scope="col">Contact</th>
+                <th scope="col" className="num">
+                  Weight (ct)
+                </th>
+                <th scope="col" className="num">
+                  Buy (Le)
+                </th>
+                <th scope="col" className="num">
+                  Received (Le)
+                </th>
+                <th scope="col">Status</th>
+                <th scope="col" className="crud-table__actions">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {purchases.map((p) => {
+                const isEditing = editingId === p._id && canUpdate;
+                const colCount = 8;
+                return (
+                  <Fragment key={p._id}>
+                    <tr>
+                      <td>{formatDateUtc(p.purchaseDate)}</td>
+                      <td>{p.clientName}</td>
+                      <td>{p.clientContact}</td>
+                      <td className="num">{p.weightCarat}</td>
+                      <td className="num">{p.buyingPrice.toFixed(2)}</td>
+                      <td className="num">{Number(p.amountReceived).toFixed(2)}</td>
+                      <td>
+                        <StatusPill tone={purchaseStatusTone(p.status)}>{p.status}</StatusPill>
+                      </td>
+                      <td className="crud-table__actions">
+                        <div className="crud-table__actions-inner">
+                          <ViewIconButton
+                            label={viewingId === p._id ? "Hide details" : "View record details"}
+                            onClick={() => setViewingId((id) => (id === p._id ? null : p._id))}
+                          />
+                          {canUpdate ? (
+                            <EditIconButton label="Edit purchase" onClick={() => startEdit(p)} disabled={isEditing} />
+                          ) : null}
+                          {canDelete ? <DeleteIconButton label="Delete purchase" onClick={() => handleDelete(p._id)} /> : null}
+                        </div>
+                      </td>
+                    </tr>
+                    {viewingId === p._id ? (
+                      <tr className="crud-detail-row">
+                        <td colSpan={colCount}>
+                          <strong>Created:</strong> {formatDateTimeUtc(p.createdAt)}
+                          {p.updatedAt ? (
+                            <>
+                              {" "}
+                              · <strong>Updated:</strong> {formatDateTimeUtc(p.updatedAt)}
+                            </>
+                          ) : null}
+                        </td>
+                      </tr>
                     ) : null}
-                    {canDelete ? (
-                      <button type="button" className="danger-button" onClick={() => handleDelete(p._id)}>
-                        Delete
-                      </button>
+                    {isEditing ? (
+                      <tr className="crud-table-row--edit">
+                        <td colSpan={colCount}>
+                          <form className="list-form-stack" onSubmit={handleSaveEdit}>
+                            <div className="form-grid form-grid--2col-sm">
+                              <FormInput type="date" label="Purchase date" value={editPurchaseDate} onChange={setEditPurchaseDate} placeholder="" required />
+                              <FormInput type="number" step="any" min="0" label="Buying price" value={editBuyingPrice} onChange={setEditBuyingPrice} placeholder="" required />
+                              <FormInput type="number" step="any" min="0" label="Weight (ct)" value={editWeightCarat} onChange={setEditWeightCarat} placeholder="" required />
+                              <FormInput label="Client name" value={editClientName} onChange={setEditClientName} placeholder="" required />
+                              <FormInput label="Contact" value={editClientContact} onChange={setEditClientContact} placeholder="" required />
+                              <FormSelect
+                                fieldLabel="Status"
+                                value={editStatus}
+                                onChange={(v) => setEditStatus(v as PurchaseStatus)}
+                                options={statuses.map((s) => ({ label: s, value: s }))}
+                              />
+                              <FormInput type="number" step="any" min="0" label="Amount received" value={editAmountReceived} onChange={setEditAmountReceived} placeholder="" />
+                            </div>
+                            <div className="list-form-actions">
+                              <FormButton label="Save" loadingLabel="Saving..." loading={editLoading} />
+                              <button type="button" className="btn-ghost" onClick={cancelEdit}>
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
                     ) : null}
-                  </div>
-                </article>
-              )
-            )}
-        {!fetching && purchases.length === 0 ? <ScreenEmpty>No gold purchases yet.</ScreenEmpty> : null}
-      </div>
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </AppScreen>
   );
 }

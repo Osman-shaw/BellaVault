@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Fragment, useEffect, useState } from "react";
 import { apiService, Borrow, BorrowPaymentStatus } from "@/services/apiService";
 import { FormButton } from "@/components/form/FormButton";
 import { FormCard } from "@/components/form/FormCard";
@@ -17,8 +17,11 @@ import {
 import { can } from "@/state/rbac";
 import { useRole } from "@/state/useRole";
 import { formatDateTimeUtc } from "@/utils/formatDisplay";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { DeleteIconButton, EditIconButton, ViewIconButton } from "@/components/ui/CrudIconButtons";
 import { messageFeedbackVariant } from "@/utils/messageFeedbackVariant";
-import { notifyError, notifySuccess } from "@/utils/notify";
+import { notifyError } from "@/utils/notify";
+import { actionFeedback } from "@/utils/actionFeedback";
 
 function borrowStatusTone(status: BorrowPaymentStatus): "success" | "warn" {
   return status === "paid" ? "success" : "warn";
@@ -55,6 +58,7 @@ export function BorrowsScreen() {
   const [editAdditionalPayment, setEditAdditionalPayment] = useState("");
   const [editTotalPaidOverride, setEditTotalPaidOverride] = useState("");
   const [editLoading, setEditLoading] = useState(false);
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   async function loadBorrows() {
     try {
@@ -74,6 +78,7 @@ export function BorrowsScreen() {
   }, [canRead]);
 
   function startEdit(b: Borrow) {
+    setViewingId(null);
     setEditingId(b._id);
     setEditName(b.borrowerName);
     setEditContact(b.borrowerContact);
@@ -130,7 +135,7 @@ export function BorrowsScreen() {
       setPrincipalAmount("");
       setInitialPaid("");
       setMessage("Borrow record created.");
-      notifySuccess("Borrow record created.");
+      actionFeedback.borrowCreated();
       await loadBorrows();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Failed to create borrow record.";
@@ -190,7 +195,7 @@ export function BorrowsScreen() {
       await apiService.updateBorrow(editingId, payload);
       setEditingId(null);
       setMessage("Borrow record updated.");
-      notifySuccess("Borrow record updated.");
+      actionFeedback.borrowUpdated();
       await loadBorrows();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Failed to update borrow record.";
@@ -202,10 +207,11 @@ export function BorrowsScreen() {
   }
 
   async function handleDelete(id: string) {
+    if (!window.confirm("Delete this borrow record?")) return;
     try {
       await apiService.deleteBorrow(id);
       await loadBorrows();
-      notifySuccess("Borrow record deleted.");
+      actionFeedback.borrowDeleted();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Failed to delete borrow record.";
       setMessage(text);
@@ -255,88 +261,131 @@ export function BorrowsScreen() {
       ) : null}
 
       <ScreenSectionTitle>Records</ScreenSectionTitle>
-      <div className="list-grid">
-        {fetching
-          ? Array.from({ length: 4 }).map((_, index) => (
-              <article key={index} className="skeleton-card">
-                <div className="skeleton-line md" />
-                <div className="skeleton-line lg" />
-                <div className="skeleton-line sm" />
-                <div className="skeleton-shimmer" />
-              </article>
-            ))
-          : borrows.map((b) =>
-              editingId === b._id && canUpdate ? (
-                <article key={b._id} className="list-card list-card--edit">
-                  <form className="list-form-stack" onSubmit={handleSaveEdit}>
-                    <FormInput placeholder="Borrower name" value={editName} onChange={setEditName} required />
-                    <FormInput placeholder="Contact" value={editContact} onChange={setEditContact} required />
-                    <FormInput type="datetime-local" placeholder="When" value={editBorrowedAt} onChange={setEditBorrowedAt} required />
-                    <FormInput
-                      type="number"
-                      step="any"
-                      min="0"
-                      placeholder="Principal (amount borrowed)"
-                      value={editPrincipal}
-                      onChange={setEditPrincipal}
-                      required
-                    />
-                    <p className="report-muted" style={{ margin: 0, fontSize: 13 }}>
-                      Current paid: Le {Number(b.amountPaid).toFixed(2)} · Balance: Le {Number(b.remainingBalance).toFixed(2)}
-                    </p>
-                    <FormInput
-                      type="number"
-                      step="any"
-                      min="0"
-                      placeholder="Record payment (adds to paid)"
-                      value={editAdditionalPayment}
-                      onChange={setEditAdditionalPayment}
-                    />
-                    <FormInput
-                      type="number"
-                      step="any"
-                      min="0"
-                      placeholder="Or set total paid (full amount to date)"
-                      value={editTotalPaidOverride}
-                      onChange={setEditTotalPaidOverride}
-                    />
-                    <div className="list-form-actions">
-                      <FormButton label="Save" loadingLabel="Saving..." loading={editLoading} />
-                      <button type="button" className="btn-ghost" onClick={cancelEdit}>
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                </article>
-              ) : (
-                <article key={b._id} className="list-card">
-                  <div className="list-card__main">
-                    <div className="list-card__title">
-                      {b.borrowerName} · {b.borrowerContact}
-                    </div>
-                    <div className="list-card__meta">
-                      {formatDateTimeUtc(b.borrowedAt)} · Principal Le {b.principalAmount.toFixed(2)} · Paid Le{" "}
-                      {Number(b.amountPaid).toFixed(2)} · Balance Le {Number(b.remainingBalance).toFixed(2)}
-                    </div>
-                    <StatusPill tone={borrowStatusTone(b.status)}>{b.status}</StatusPill>
-                  </div>
-                  <div className="list-card__actions">
-                    {canUpdate ? (
-                      <button type="button" className="btn-ghost" onClick={() => startEdit(b)}>
-                        Edit
-                      </button>
+      {fetching ? (
+        <div className="page-loading">
+          <LoadingSpinner size="lg" />
+          <span>Loading borrows…</span>
+        </div>
+      ) : borrows.length === 0 ? (
+        <ScreenEmpty>No borrow records yet.</ScreenEmpty>
+      ) : (
+        <div className="crud-table-wrap">
+          <table className="crud-table">
+            <thead>
+              <tr>
+                <th scope="col">Borrower</th>
+                <th scope="col">Contact</th>
+                <th scope="col">Borrowed at</th>
+                <th scope="col" className="num">
+                  Principal (Le)
+                </th>
+                <th scope="col" className="num">
+                  Paid (Le)
+                </th>
+                <th scope="col" className="num">
+                  Balance (Le)
+                </th>
+                <th scope="col">Status</th>
+                <th scope="col" className="crud-table__actions">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {borrows.map((b) => {
+                const isEditing = editingId === b._id && canUpdate;
+                const colCount = 8;
+                return (
+                  <Fragment key={b._id}>
+                    <tr>
+                      <td>{b.borrowerName}</td>
+                      <td>{b.borrowerContact}</td>
+                      <td>{formatDateTimeUtc(b.borrowedAt)}</td>
+                      <td className="num">{b.principalAmount.toFixed(2)}</td>
+                      <td className="num">{Number(b.amountPaid).toFixed(2)}</td>
+                      <td className="num">{Number(b.remainingBalance).toFixed(2)}</td>
+                      <td>
+                        <StatusPill tone={borrowStatusTone(b.status)}>{b.status}</StatusPill>
+                      </td>
+                      <td className="crud-table__actions">
+                        <div className="crud-table__actions-inner">
+                          <ViewIconButton
+                            label={viewingId === b._id ? "Hide details" : "View details"}
+                            onClick={() => setViewingId((id) => (id === b._id ? null : b._id))}
+                          />
+                          {canUpdate ? <EditIconButton label="Edit borrow" onClick={() => startEdit(b)} disabled={isEditing} /> : null}
+                          {canDelete ? <DeleteIconButton label="Delete borrow" onClick={() => handleDelete(b._id)} /> : null}
+                        </div>
+                      </td>
+                    </tr>
+                    {viewingId === b._id ? (
+                      <tr className="crud-detail-row">
+                        <td colSpan={colCount}>
+                          <strong>Created:</strong> {formatDateTimeUtc(b.createdAt)}
+                          {b.updatedAt ? (
+                            <>
+                              {" "}
+                              · <strong>Updated:</strong> {formatDateTimeUtc(b.updatedAt)}
+                            </>
+                          ) : null}
+                        </td>
+                      </tr>
                     ) : null}
-                    {canDelete ? (
-                      <button type="button" className="danger-button" onClick={() => handleDelete(b._id)}>
-                        Delete
-                      </button>
+                    {isEditing ? (
+                      <tr className="crud-table-row--edit">
+                        <td colSpan={colCount}>
+                          <form className="list-form-stack" onSubmit={handleSaveEdit}>
+                            <FormInput label="Borrower name" value={editName} onChange={setEditName} placeholder="" required />
+                            <FormInput label="Contact" value={editContact} onChange={setEditContact} placeholder="" required />
+                            <FormInput type="datetime-local" label="When borrowed" value={editBorrowedAt} onChange={setEditBorrowedAt} placeholder="" required />
+                            <FormInput
+                              type="number"
+                              step="any"
+                              min="0"
+                              label="Principal (amount borrowed)"
+                              value={editPrincipal}
+                              onChange={setEditPrincipal}
+                              placeholder=""
+                              required
+                            />
+                            <p className="report-muted" style={{ margin: 0, fontSize: 13 }}>
+                              Current paid: Le {Number(b.amountPaid).toFixed(2)} · Balance: Le {Number(b.remainingBalance).toFixed(2)}
+                            </p>
+                            <FormInput
+                              type="number"
+                              step="any"
+                              min="0"
+                              label="Record payment (adds to paid)"
+                              value={editAdditionalPayment}
+                              onChange={setEditAdditionalPayment}
+                              placeholder=""
+                            />
+                            <FormInput
+                              type="number"
+                              step="any"
+                              min="0"
+                              label="Or set total paid (full amount to date)"
+                              value={editTotalPaidOverride}
+                              onChange={setEditTotalPaidOverride}
+                              placeholder=""
+                            />
+                            <div className="list-form-actions">
+                              <FormButton label="Save" loadingLabel="Saving..." loading={editLoading} />
+                              <button type="button" className="btn-ghost" onClick={cancelEdit}>
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
                     ) : null}
-                  </div>
-                </article>
-              )
-            )}
-        {!fetching && borrows.length === 0 ? <ScreenEmpty>No borrow records yet.</ScreenEmpty> : null}
-      </div>
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </AppScreen>
   );
 }

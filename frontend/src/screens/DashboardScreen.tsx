@@ -6,6 +6,7 @@ import { AppScreen, ScreenFeedback } from "@/components/layout/AppScreen";
 import { apiService, LiveMarketApiResponse, LiveMarketResponse, MarketItem } from "@/services/apiService";
 import { formatNumberEnFlexible } from "@/utils/formatDisplay";
 import { notifyError } from "@/utils/notify";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 function MarketCard({ title, item }: { title: string; item: MarketItem }) {
   const up = (item.change ?? 0) >= 0;
   const changeClass = up ? "dashboard-market-change--up" : "dashboard-market-change--down";
@@ -57,9 +58,9 @@ export function DashboardScreen() {
         }
       } catch {
         if (!mounted) return;
-        const msg = "Unable to load live market data right now.";
+        const msg = "We could not refresh live quotes. Check your connection or try again shortly.";
         setError(msg);
-        if (notifyOnFailure) notifyError(msg);
+        if (notifyOnFailure) notifyError(msg, "Live quotes unavailable");
       } finally {
         if (mounted) setLoading(false);
       }
@@ -130,15 +131,9 @@ export function DashboardScreen() {
       {metalsNote ? <p className="dashboard-market-source-hint">{metalsNote}</p> : null}
       {error ? <ScreenFeedback variant="error">{error}</ScreenFeedback> : null}
       {loading ? (
-        <div className="skeleton-grid">
-          {Array.from({ length: 7 }).map((_, index) => (
-            <article key={index} className="skeleton-card">
-              <div className="skeleton-line md" />
-              <div className="skeleton-line lg" />
-              <div className="skeleton-line sm" />
-              <div className="skeleton-shimmer" />
-            </article>
-          ))}
+        <div className="page-loading">
+          <LoadingSpinner size="lg" />
+          <span>Loading live market…</span>
         </div>
       ) : (
         <>

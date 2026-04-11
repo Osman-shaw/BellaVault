@@ -1,6 +1,16 @@
 import { clearSession, readSession, Session, writeSession } from "@/state/auth";
 import { notifyError, notifyInfo, notifySuccess } from "@/utils/notify";
 
+const DEFAULT_TENANT_SLUG = "default";
+
+function withTenantSlug(body: Record<string, unknown>) {
+  const tenantSlug =
+    typeof body.tenantSlug === "string" && body.tenantSlug.trim().length >= 2
+      ? body.tenantSlug.trim().toLowerCase()
+      : DEFAULT_TENANT_SLUG;
+  return JSON.stringify({ ...body, tenantSlug });
+}
+
 export type Commodity = "GOLD" | "SILVER" | "PLATINUM" | "DIAMOND";
 
 export interface Entity {
@@ -283,7 +293,7 @@ async function tryRefreshSession(): Promise<Session | null> {
 
     const nextSession = (await response.json()) as Session;
     writeSession(nextSession);
-    notifySuccess("Session refreshed.");
+    notifySuccess("Your secure session is active again — pick up right where you left off.", "Still signed in ✓");
     return nextSession;
   })();
 
@@ -342,6 +352,9 @@ type AuthResponse = {
     email: string;
     role: "admin" | "secretary" | "associate_director";
     emailVerified: boolean;
+    tenantId: string;
+    tenantSlug?: string;
+    tenantName?: string;
     phoneMasked?: string;
   };
 };
@@ -457,20 +470,26 @@ export const apiService = {
   },
   getDashboard: () => request<{ totalValue: number; totalPaid: number; balanceDue: number; deals: number }>("/dashboard"),
   getLiveMarket: () => request<LiveMarketApiResponse>("/market/live"),
-  login: (payload: { email: string; password: string }) =>
+  login: (payload: { email: string; password: string; tenantSlug?: string }) =>
     request<AuthResponse>("/auth/login", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: withTenantSlug(payload),
     }),
-  register: (payload: { fullName: string; email: string; password: string; role: "admin" | "secretary" | "associate_director" }) =>
+  register: (payload: {
+    fullName: string;
+    email: string;
+    password: string;
+    role: "admin" | "secretary" | "associate_director";
+    tenantSlug?: string;
+  }) =>
     request<{ message: string; verificationToken: string; user: AuthResponse["user"] }>("/auth/register", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: withTenantSlug(payload),
     }),
-  verifyEmail: (payload: { email: string; token: string }) =>
+  verifyEmail: (payload: { email: string; token: string; tenantSlug?: string }) =>
     request<{ message: string }>("/auth/verify-email", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: withTenantSlug(payload),
     }),
   phoneRegisterRequest: (payload: { fullName: string; phone: string; role: "admin" | "secretary" | "associate_director" }) =>
     request<PhoneOtpHintResponse>("/auth/phone/register/request", {

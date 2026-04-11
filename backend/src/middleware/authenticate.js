@@ -16,6 +16,7 @@ function optionalAuth(req, _res, next) {
       id: payload.sub,
       role: payload.role,
       email: payload.email,
+      tenantId: payload.tid || null,
     };
     return next();
   } catch {

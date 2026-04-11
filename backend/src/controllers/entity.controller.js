@@ -1,9 +1,9 @@
 const Entity = require("../model/entity.model");
 const PartnerLedger = require("../model/partnerLedger.model");
 
-async function listEntities(_req, res, next) {
+async function listEntities(req, res, next) {
   try {
-    const data = await Entity.find({}).sort({ createdAt: -1 });
+    const data = await Entity.find({ tenantId: req.tenantId }).sort({ createdAt: -1 });
     res.json(data);
   } catch (error) {
     next(error);
@@ -12,7 +12,7 @@ async function listEntities(_req, res, next) {
 
 async function createEntity(req, res, next) {
   try {
-    const entity = await Entity.create(req.body);
+    const entity = await Entity.create({ ...req.body, tenantId: req.tenantId });
     res.status(201).json(entity);
   } catch (error) {
     next(error);
@@ -21,10 +21,14 @@ async function createEntity(req, res, next) {
 
 async function updateEntity(req, res, next) {
   try {
-    const entity = await Entity.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    const entity = await Entity.findOneAndUpdate(
+      { _id: req.params.id, tenantId: req.tenantId },
+      req.body,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
 
     if (!entity) {
       return res.status(404).json({ message: "Entity not found" });
@@ -38,11 +42,11 @@ async function updateEntity(req, res, next) {
 
 async function deleteEntity(req, res, next) {
   try {
-    const entity = await Entity.findByIdAndDelete(req.params.id);
+    const entity = await Entity.findOneAndDelete({ _id: req.params.id, tenantId: req.tenantId });
     if (!entity) {
       return res.status(404).json({ message: "Entity not found" });
     }
-    await PartnerLedger.deleteMany({ entityId: entity._id });
+    await PartnerLedger.deleteMany({ entityId: entity._id, tenantId: req.tenantId });
     return res.status(204).send();
   } catch (error) {
     return next(error);

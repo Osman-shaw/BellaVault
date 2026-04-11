@@ -6,8 +6,8 @@ function computeDealStatus(totalValue, paidAmount) {
   return "OWED";
 }
 
-async function getDashboardSummary() {
-  const deals = await Deal.find({}).lean();
+async function getDashboardSummary(tenantId) {
+  const deals = await Deal.find({ tenantId }).lean();
 
   const totalValue = deals.reduce((sum, item) => sum + item.totalValue, 0);
   const totalPaid = deals.reduce((sum, item) => sum + item.paidAmount, 0);

@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const saleSchema = new mongoose.Schema(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
     saleDate: { type: Date, required: true },
     buyerName: { type: String, required: true, trim: true },
     buyerContact: { type: String, required: true, trim: true },

@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const borrowSchema = new mongoose.Schema(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
     borrowerName: { type: String, required: true, trim: true },
     borrowerContact: { type: String, required: true, trim: true },
     borrowedAt: { type: Date, required: true },

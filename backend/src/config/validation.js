@@ -16,6 +16,8 @@ const strongPasswordSchema = z
   .regex(/\d/, "Password must include a number")
   .regex(/[^A-Za-z\d]/, "Password must include a special character");
 
+const tenantSlugSchema = z.string().trim().min(2).max(64).optional();
+
 const createEntitySchema = z.object({
   body: z.object({
     name: z.string().trim().min(2, "Name must be at least 2 characters"),
@@ -30,6 +32,7 @@ const registerSchema = z.object({
     email: z.string().trim().email("Valid email is required"),
     password: strongPasswordSchema,
     role: roleEnum,
+    tenantSlug: tenantSlugSchema,
   }),
 });
 
@@ -37,6 +40,7 @@ const verifyEmailSchema = z.object({
   body: z.object({
     email: z.string().trim().email("Valid email is required"),
     token: z.string().trim().min(6, "Verification token is required"),
+    tenantSlug: tenantSlugSchema,
   }),
 });
 
@@ -44,6 +48,7 @@ const loginSchema = z.object({
   body: z.object({
     email: z.string().trim().email("Valid email is required"),
     password: z.string().min(1, "Password is required"),
+    tenantSlug: tenantSlugSchema,
   }),
 });
 

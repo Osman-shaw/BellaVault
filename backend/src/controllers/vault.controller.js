@@ -3,7 +3,7 @@ const { getVaultBalance, applyVaultDelta } = require("../services/vault.service"
 
 async function getVault(req, res, next) {
   try {
-    const balance = await getVaultBalance();
+    const balance = await getVaultBalance(req.tenantId);
     res.json({
       balance,
       currency: "SLL",
@@ -17,7 +17,7 @@ async function getVault(req, res, next) {
 async function listVaultMovements(req, res, next) {
   try {
     const limit = Math.min(Number(req.query.limit) || 50, 100);
-    const rows = await VaultMovement.find({})
+    const rows = await VaultMovement.find({ tenantId: req.tenantId })
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
@@ -48,10 +48,14 @@ async function depositVault(req, res, next) {
 
     const label = note ? `Cash deposit: ${note}` : "Cash deposit";
 
-    const balance = await applyVaultDelta(amount, {
-      kind: "deposit",
-      label,
-    });
+    const balance = await applyVaultDelta(
+      req.tenantId,
+      amount,
+      {
+        kind: "deposit",
+        label,
+      }
+    );
 
     res.status(201).json({ balance, message: "Vault balance updated." });
   } catch (error) {

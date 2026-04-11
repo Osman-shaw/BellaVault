@@ -2,7 +2,8 @@ const request = require("supertest");
 
 function makeToken(role = "admin") {
   const { signAccessToken } = require("../src/services/auth.service");
-  return signAccessToken({ sub: "507f1f77bcf86cd799439011", role, email: "test@example.com" });
+  const tid = process.env.DEFAULT_TENANT_ID || "507f1f77bcf86cd799439011";
+  return signAccessToken({ sub: "507f1f77bcf86cd799439011", role, email: "test@example.com", tid });
 }
 
 function asRole(req, role = "admin") {
@@ -16,6 +17,7 @@ describe("API validation, auth, RBAC, and rate limiting", () => {
   beforeEach(() => {
     jest.resetModules();
     process.env.JWT_SECRET = "test-secret";
+    process.env.DEFAULT_TENANT_ID = "507f1f77bcf86cd799439011";
     process.env.RATE_LIMIT_WINDOW_MS = "60000";
     process.env.RATE_LIMIT_MAX = "40";
   });

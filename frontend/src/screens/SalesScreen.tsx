@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Fragment, useEffect, useState } from "react";
 import { apiService, Sale, SaleWeightUnit } from "@/services/apiService";
 import { FormButton } from "@/components/form/FormButton";
 import { FormCard } from "@/components/form/FormCard";
@@ -16,9 +16,12 @@ import {
 } from "@/components/layout/AppScreen";
 import { can } from "@/state/rbac";
 import { useRole } from "@/state/useRole";
-import { formatDateUtc } from "@/utils/formatDisplay";
+import { formatDateTimeUtc, formatDateUtc } from "@/utils/formatDisplay";
 import { messageFeedbackVariant } from "@/utils/messageFeedbackVariant";
-import { notifyError, notifySuccess } from "@/utils/notify";
+import { notifyError } from "@/utils/notify";
+import { actionFeedback } from "@/utils/actionFeedback";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { DeleteIconButton, EditIconButton, ViewIconButton } from "@/components/ui/CrudIconButtons";
 
 const weightUnits: { label: string; value: SaleWeightUnit }[] = [
   { label: "Grams", value: "gram" },
@@ -62,6 +65,7 @@ export function SalesScreen() {
   const [editSellingPrice, setEditSellingPrice] = useState("");
   const [editAmountReceived, setEditAmountReceived] = useState("");
   const [editLoading, setEditLoading] = useState(false);
+  const [viewingId, setViewingId] = useState<string | null>(null);
 
   async function loadSales() {
     try {
@@ -81,6 +85,7 @@ export function SalesScreen() {
   }, [canRead]);
 
   function startEdit(s: Sale) {
+    setViewingId(null);
     setEditingId(s._id);
     setEditSaleDate(toDateInputValue(s.saleDate));
     setEditBuyerName(s.buyerName);
@@ -147,7 +152,7 @@ export function SalesScreen() {
       setSellingPrice("");
       setAmountReceived("");
       setMessage("Sale recorded.");
-      notifySuccess("Sale recorded.");
+      actionFeedback.saleCreated();
       await loadSales();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Failed to create sale.";
@@ -200,7 +205,7 @@ export function SalesScreen() {
       });
       setEditingId(null);
       setMessage("Sale updated.");
-      notifySuccess("Sale updated.");
+      actionFeedback.saleUpdated();
       await loadSales();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Failed to update sale.";
@@ -212,10 +217,11 @@ export function SalesScreen() {
   }
 
   async function handleDelete(id: string) {
+    if (!window.confirm("Delete this sale record?")) return;
     try {
       await apiService.deleteSale(id);
       await loadSales();
-      notifySuccess("Sale deleted.");
+      actionFeedback.saleDeleted();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Failed to delete sale.";
       setMessage(text);
@@ -268,83 +274,109 @@ export function SalesScreen() {
         <ScreenFeedback variant={messageFeedbackVariant(message)}>{message}</ScreenFeedback>
       ) : null}
       <ScreenSectionTitle>Records</ScreenSectionTitle>
-      <div className="list-grid">
-        {fetching
-          ? Array.from({ length: 4 }).map((_, index) => (
-              <article key={index} className="skeleton-card">
-                <div className="skeleton-line md" />
-                <div className="skeleton-line lg" />
-                <div className="skeleton-line sm" />
-                <div className="skeleton-shimmer" />
-              </article>
-            ))
-          : sales.map((s) =>
-              editingId === s._id && canUpdate ? (
-                <article key={s._id} className="list-card list-card--edit">
-                  <form className="list-form-stack" onSubmit={handleSaveEdit}>
-                    <FormInput type="date" placeholder="Sale date" value={editSaleDate} onChange={setEditSaleDate} required />
-                    <FormInput placeholder="Exporter / buyer" value={editBuyerName} onChange={setEditBuyerName} required />
-                    <FormInput placeholder="Contact" value={editBuyerContact} onChange={setEditBuyerContact} required />
-                    <FormInput type="number" step="any" min="0" placeholder="Weight" value={editWeight} onChange={setEditWeight} required />
-                    <FormSelect
-                      value={editWeightUnit}
-                      onChange={(v) => setEditWeightUnit(v as SaleWeightUnit)}
-                      options={weightUnits.map((o) => ({ label: o.label, value: o.value }))}
-                    />
-                    <FormInput
-                      type="number"
-                      step="any"
-                      min="0"
-                      placeholder="Selling price"
-                      value={editSellingPrice}
-                      onChange={setEditSellingPrice}
-                      required
-                    />
-                    <FormInput
-                      type="number"
-                      step="any"
-                      min="0"
-                      placeholder="Amount received"
-                      value={editAmountReceived}
-                      onChange={setEditAmountReceived}
-                    />
-                    <div className="list-form-actions">
-                      <FormButton label="Save" loadingLabel="Saving..." loading={editLoading} />
-                      <button type="button" className="btn-ghost" onClick={cancelEdit}>
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
-                </article>
-              ) : (
-                <article key={s._id} className="list-card">
-                  <div className="list-card__main">
-                    <div className="list-card__title">
-                      {s.buyerName} · {s.buyerContact}
-                    </div>
-                    <div className="list-card__meta">
-                      {formatDateUtc(s.saleDate)} · {s.weight}
-                      {unitLabel(s.weightUnit)} · sell Le {s.sellingPrice.toFixed(2)} · received Le{" "}
-                      {Number(s.amountReceived).toFixed(2)}
-                    </div>
-                  </div>
-                  <div className="list-card__actions">
-                    {canUpdate ? (
-                      <button type="button" className="btn-ghost" onClick={() => startEdit(s)}>
-                        Edit
-                      </button>
+      {fetching ? (
+        <div className="page-loading">
+          <LoadingSpinner size="lg" />
+          <span>Loading sales…</span>
+        </div>
+      ) : sales.length === 0 ? (
+        <ScreenEmpty>No sales yet.</ScreenEmpty>
+      ) : (
+        <div className="crud-table-wrap">
+          <table className="crud-table">
+            <thead>
+              <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Buyer</th>
+                <th scope="col">Contact</th>
+                <th scope="col" className="num">
+                  Weight
+                </th>
+                <th scope="col">Unit</th>
+                <th scope="col" className="num">
+                  Sell (Le)
+                </th>
+                <th scope="col" className="num">
+                  Received (Le)
+                </th>
+                <th scope="col" className="crud-table__actions">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sales.map((s) => {
+                const isEditing = editingId === s._id && canUpdate;
+                const colCount = 8;
+                return (
+                  <Fragment key={s._id}>
+                    <tr>
+                      <td>{formatDateUtc(s.saleDate)}</td>
+                      <td>{s.buyerName}</td>
+                      <td>{s.buyerContact}</td>
+                      <td className="num">{s.weight}</td>
+                      <td>{unitLabel(s.weightUnit)}</td>
+                      <td className="num">{s.sellingPrice.toFixed(2)}</td>
+                      <td className="num">{Number(s.amountReceived).toFixed(2)}</td>
+                      <td className="crud-table__actions">
+                        <div className="crud-table__actions-inner">
+                          <ViewIconButton
+                            label={viewingId === s._id ? "Hide details" : "View details"}
+                            onClick={() => setViewingId((id) => (id === s._id ? null : s._id))}
+                          />
+                          {canUpdate ? <EditIconButton label="Edit sale" onClick={() => startEdit(s)} disabled={isEditing} /> : null}
+                          {canDelete ? <DeleteIconButton label="Delete sale" onClick={() => handleDelete(s._id)} /> : null}
+                        </div>
+                      </td>
+                    </tr>
+                    {viewingId === s._id ? (
+                      <tr className="crud-detail-row">
+                        <td colSpan={colCount}>
+                          <strong>Created:</strong> {formatDateTimeUtc(s.createdAt)}
+                          {s.updatedAt ? (
+                            <>
+                              {" "}
+                              · <strong>Updated:</strong> {formatDateTimeUtc(s.updatedAt)}
+                            </>
+                          ) : null}
+                        </td>
+                      </tr>
                     ) : null}
-                    {canDelete ? (
-                      <button type="button" className="danger-button" onClick={() => handleDelete(s._id)}>
-                        Delete
-                      </button>
+                    {isEditing ? (
+                      <tr className="crud-table-row--edit">
+                        <td colSpan={colCount}>
+                          <form className="list-form-stack" onSubmit={handleSaveEdit}>
+                            <div className="form-grid form-grid--2col-sm">
+                              <FormInput type="date" label="Sale date" value={editSaleDate} onChange={setEditSaleDate} placeholder="" required />
+                              <FormInput label="Exporter / buyer" value={editBuyerName} onChange={setEditBuyerName} placeholder="" required />
+                              <FormInput label="Contact" value={editBuyerContact} onChange={setEditBuyerContact} placeholder="" required />
+                              <FormInput type="number" step="any" min="0" label="Weight" value={editWeight} onChange={setEditWeight} placeholder="" required />
+                              <FormSelect
+                                fieldLabel="Unit"
+                                value={editWeightUnit}
+                                onChange={(v) => setEditWeightUnit(v as SaleWeightUnit)}
+                                options={weightUnits.map((o) => ({ label: o.label, value: o.value }))}
+                              />
+                              <FormInput type="number" step="any" min="0" label="Selling price" value={editSellingPrice} onChange={setEditSellingPrice} placeholder="" required />
+                              <FormInput type="number" step="any" min="0" label="Amount received" value={editAmountReceived} onChange={setEditAmountReceived} placeholder="" />
+                            </div>
+                            <div className="list-form-actions">
+                              <FormButton label="Save" loadingLabel="Saving..." loading={editLoading} />
+                              <button type="button" className="btn-ghost" onClick={cancelEdit}>
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
                     ) : null}
-                  </div>
-                </article>
-              )
-            )}
-        {!fetching && sales.length === 0 ? <ScreenEmpty>No sales yet.</ScreenEmpty> : null}
-      </div>
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </AppScreen>
   );
 }

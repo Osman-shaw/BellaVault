@@ -8,6 +8,10 @@ export interface SessionUser {
   email: string;
   role: Exclude<Role, "guest">;
   emailVerified: boolean;
+  /** Organization (tenant) for multi-tenant data isolation. */
+  tenantId: string;
+  tenantSlug?: string;
+  tenantName?: string;
   /** Present when the user signed up or signs in with a verified Sierra Leone phone. */
   phoneMasked?: string;
 }
@@ -57,7 +61,7 @@ export function parseSessionFromRaw(raw: string | null): Session | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Session;
-    if (!parsed?.accessToken || !parsed?.refreshToken || !parsed?.user?.role) return null;
+    if (!parsed?.accessToken || !parsed?.refreshToken || !parsed?.user?.role || !parsed?.user?.tenantId) return null;
     return parsed;
   } catch {
     return null;

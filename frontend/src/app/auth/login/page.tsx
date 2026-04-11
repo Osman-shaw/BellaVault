@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useState } from "react";
 import { AuthInlineLink, AuthLinkRow } from "@/components/auth/AuthLinkRow";
 import { AuthShell } from "@/components/auth/AuthShell";
 import { AuthFeedback } from "@/components/auth/AuthFeedback";
@@ -10,6 +10,7 @@ import { FormCard } from "@/components/form/FormCard";
 import { FormInput } from "@/components/form/FormInput";
 import { apiService } from "@/services/apiService";
 import { writeSession } from "@/state/auth";
+import { AuthVaultCelebration } from "@/components/vault/AuthVaultCelebration";
 
 type Method = "email" | "phone";
 
@@ -19,6 +20,8 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  /** Same slug used at registration (built-in default is "default"). */
+  const [tenantSlug, setTenantSlug] = useState("default");
 
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -28,6 +31,13 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [phoneInstruction, setPhoneInstruction] = useState("");
   const [loading, setLoading] = useState(false);
+  const [vaultOpen, setVaultOpen] = useState(false);
+  const [vaultKey, setVaultKey] = useState(0);
+
+  const finishWelcome = useCallback(() => {
+    router.push("/deals");
+    router.refresh();
+  }, [router]);
 
   async function onSubmitEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,10 +45,10 @@ export default function LoginPage() {
 
     try {
       setLoading(true);
-      const session = await apiService.login({ email, password });
+      const session = await apiService.login({ email, password, tenantSlug });
       writeSession(session);
-      router.push("/deals");
-      router.refresh();
+      setVaultKey((k) => k + 1);
+      setVaultOpen(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed.");
     } finally {
@@ -73,8 +83,8 @@ export default function LoginPage() {
       setLoading(true);
       const session = await apiService.phoneLoginVerify({ phone, code: otp.replace(/\D/g, "").slice(0, 6) });
       writeSession(session);
-      router.push("/deals");
-      router.refresh();
+      setVaultKey((k) => k + 1);
+      setVaultOpen(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed.");
     } finally {
@@ -93,6 +103,9 @@ export default function LoginPage() {
 
   return (
     <main>
+      {vaultOpen ? (
+        <AuthVaultCelebration key={vaultKey} open={vaultOpen} mode="welcome" onComplete={finishWelcome} />
+      ) : null}
       <AuthShell eyebrow="Account access">
         <div className="auth-method-tabs" role="tablist" aria-label="Sign-in method">
           <button
@@ -139,6 +152,14 @@ export default function LoginPage() {
               type="password"
               autoComplete="current-password"
               required
+            />
+            <FormInput
+              label="Organization slug"
+              value={tenantSlug}
+              onChange={setTenantSlug}
+              placeholder="default"
+              type="text"
+              autoComplete="organization"
             />
             <FormButton variant="auth" label="Sign in" loadingLabel="Signing in…" loading={loading} />
           </FormCard>

@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const dealSchema = new mongoose.Schema(
   {
+    tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
     entityId: { type: mongoose.Schema.Types.ObjectId, ref: "Entity", required: true },
     commodity: {
       type: String,
