@@ -9,6 +9,7 @@ import { useRole } from "@/state/useRole";
 import { notifyInfo } from "@/utils/notify";
 import { actionFeedback } from "@/utils/actionFeedback";
 import { BellaVaultMark } from "@/components/brand/BellaVaultMark";
+import { ThirtyDayReminders } from "@/components/notifications/ThirtyDayReminders";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -82,6 +83,7 @@ export function AppNavigation() {
 
   return (
     <nav className="app-nav" aria-label="Main">
+      <ThirtyDayReminders />
       <div className="app-nav-start">
         <Link href="/" className="app-nav-brand" aria-label="BellaVault home">
           <img src="/brand/bellavault-logo.svg" alt="" width={200} height={36} className="app-nav-brand__img" />

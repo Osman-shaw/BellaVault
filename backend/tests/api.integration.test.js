@@ -93,11 +93,14 @@ describe("API validation, auth, RBAC, and rate limiting", () => {
 
     const response = await request(app).get("/api/dashboard");
     const reportsResponse = await request(app).get("/api/reports/overview");
+    const remindersResponse = await request(app).get("/api/reminders/thirty-day");
 
     expect(response.status).toBe(401);
     expect(response.body.message).toBe("Authentication role is required.");
     expect(reportsResponse.status).toBe(401);
     expect(reportsResponse.body.message).toBe("Authentication role is required.");
+    expect(remindersResponse.status).toBe(401);
+    expect(remindersResponse.body.message).toBe("Authentication required.");
   });
 
   it("enforces role permissions for delete", async () => {

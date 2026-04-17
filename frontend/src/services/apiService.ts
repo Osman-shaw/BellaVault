@@ -188,6 +188,38 @@ export interface Borrow {
   updatedAt?: string;
 }
 
+export interface ThirtyDayReminderBorrow {
+  id: string;
+  borrowerName: string;
+  borrowerContact: string;
+  borrowedAt: string;
+  principalAmount: number;
+  amountPaid: number;
+  remainingBalance: number;
+  status: BorrowPaymentStatus;
+  daysSinceBorrowed: number;
+  periodIndex: number;
+}
+
+export interface ThirtyDayReminderPartner {
+  entityId: string;
+  entityName: string;
+  firstInvestedAt: string;
+  totalInvested: number;
+  totalReceived: number;
+  capitalRemaining: number;
+  ledgerEntryCount: number;
+  daysSinceFirstLedger: number;
+  periodIndex: number;
+}
+
+export interface ThirtyDayRemindersResponse {
+  intervalDays: number;
+  borrows: ThirtyDayReminderBorrow[];
+  partners: ThirtyDayReminderPartner[];
+  generatedAt: string;
+}
+
 export interface CreateBorrowPayload {
   borrowerName: string;
   borrowerContact: string;
@@ -446,6 +478,7 @@ export const apiService = {
     request<void>(`/sales/${id}`, {
       method: "DELETE",
     }),
+  getThirtyDayReminders: () => request<ThirtyDayRemindersResponse>("/reminders/thirty-day"),
   getBorrows: () => request<Borrow[]>("/borrows"),
   createBorrow: (payload: CreateBorrowPayload) =>
     request<Borrow>("/borrows", {
