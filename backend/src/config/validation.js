@@ -288,6 +288,43 @@ const vaultDepositSchema = z.object({
   }),
 });
 
+const createSavingsAccountSchema = z.object({
+  body: z.object({
+    depositorName: z.string().trim().min(2, "Depositor name must be at least 2 characters"),
+    depositorContact: z.string().trim().min(3, "Contact is required"),
+    depositorAddress: z.string().trim().min(3, "Address is required").max(200),
+    openedAt: z.coerce.date(),
+    initialDeposit: z.coerce.number().positive("Initial deposit must be greater than 0"),
+    note: z.string().trim().max(200).optional(),
+  }),
+});
+
+const updateSavingsAccountSchema = z.object({
+  params: z.object({
+    id: objectIdSchema,
+  }),
+  body: z
+    .object({
+      depositorName: z.string().trim().min(2, "Depositor name must be at least 2 characters").optional(),
+      depositorContact: z.string().trim().min(3, "Contact is required").optional(),
+      depositorAddress: z.string().trim().min(3, "Address is required").max(200).optional(),
+    })
+    .refine((value) => Object.keys(value).length > 0, {
+      message: "At least one field is required for update",
+    }),
+});
+
+const savingsTransactionSchema = z.object({
+  params: z.object({
+    id: objectIdSchema,
+  }),
+  body: z.object({
+    amount: z.coerce.number().positive("Amount must be greater than 0"),
+    occurredAt: z.coerce.date().optional(),
+    note: z.string().trim().max(200).optional(),
+  }),
+});
+
 module.exports = {
   registerSchema,
   verifyEmailSchema,
@@ -313,4 +350,7 @@ module.exports = {
   phoneLoginRequestSchema,
   phoneLoginVerifySchema,
   vaultDepositSchema,
+  createSavingsAccountSchema,
+  updateSavingsAccountSchema,
+  savingsTransactionSchema,
 };

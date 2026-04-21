@@ -28,6 +28,11 @@ const permissionMap: Record<Role, string[]> = {
     "borrows:delete",
     "vault:read",
     "vault:deposit",
+    "savings:read",
+    "savings:create",
+    "savings:update",
+    "savings:transact",
+    "savings:delete",
   ],
   secretary: [
     "dashboard:read",
@@ -52,6 +57,10 @@ const permissionMap: Record<Role, string[]> = {
     "borrows:delete",
     "vault:read",
     "vault:deposit",
+    "savings:read",
+    "savings:create",
+    "savings:update",
+    "savings:transact",
   ],
   associate_director: [
     "dashboard:read",
@@ -67,6 +76,7 @@ const permissionMap: Record<Role, string[]> = {
     "borrows:read",
     "borrows:create",
     "vault:read",
+    "savings:read",
   ],
 };
 

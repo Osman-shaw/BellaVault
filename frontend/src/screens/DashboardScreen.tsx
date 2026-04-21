@@ -32,7 +32,7 @@ function MarketCard({ title, item }: { title: string; item: MarketItem }) {
   );
 }
 
-export function DashboardScreen() {
+function DashboardScreen() {
   const [data, setData] = useState<LiveMarketResponse | null>(null);
   const [meta, setMeta] = useState<Pick<LiveMarketApiResponse, "requestedAt" | "endpoint" | "success"> | null>(null);
   const [error, setError] = useState("");
@@ -51,11 +51,8 @@ export function DashboardScreen() {
           success: response.success,
         });
         setData(response.data);
-        if (response.data.metalsSource !== "goldapi") {
-          setError("GoldAPI real-time metals feed is currently unavailable. Metal cards require GoldAPI live data.");
-        } else {
-          setError("");
-        }
+        // Backend may use Yahoo futures when GoldAPI is down; that is still valid data — do not treat as failure.
+        setError("");
       } catch {
         if (!mounted) return;
         const msg = "We could not refresh live quotes. Check your connection or try again shortly.";
@@ -80,14 +77,21 @@ export function DashboardScreen() {
   const cards = useMemo(() => {
     if (!data) return [];
     const rows: { title: string; item: MarketItem }[] = [];
+    const src = data.metalsSource;
 
-    // Enforce GoldAPI-only metal cards.
-    if (data.metalsSource === "goldapi") {
-      rows.push({ title: "Gold", item: data.gold });
-      if (data.silver) rows.push({ title: "Silver", item: data.silver });
-      if (data.platinum) rows.push({ title: "Platinum", item: data.platinum });
-      if (data.palladium) rows.push({ title: "Palladium", item: data.palladium });
-    }
+    // API returns GoldAPI spot (`goldapi`) or Yahoo futures fallback (`yahoo`). Both are shown; omit placeholder zeros.
+    if (src !== "goldapi" && src !== "yahoo") return rows;
+
+    const pushIfQuoted = (title: string, item: MarketItem | undefined) => {
+      if (!item) return;
+      if (Number(item.price) <= 0) return;
+      rows.push({ title, item });
+    };
+
+    pushIfQuoted("Gold", data.gold);
+    pushIfQuoted("Silver", data.silver);
+    pushIfQuoted("Platinum", data.platinum);
+    pushIfQuoted("Palladium", data.palladium);
     return rows;
   }, [data]);
 
@@ -96,14 +100,16 @@ export function DashboardScreen() {
       ? "Precious metal spots via GoldAPI (server key)."
       : data?.metalsSource === "yahoo"
         ? data?.goldapiConfigured
-          ? "GoldAPI key is configured, but the provider is currently unavailable. Showing public quote fallback for now."
-          : "Gold shown from a public quote feed; add GOLDAPI_API_KEY on the server for XAU/XAG/XPT/XPD spots."
-        : null;
+          ? "GoldAPI is temporarily unavailable; metals below use Yahoo Finance (futures/quote or chart fallback) until the provider responds."
+          : "Metals use Yahoo Finance (futures/quote). Add GOLDAPI_API_KEY on the server for live XAU/XAG/XPT/XPD spots from GoldAPI."
+        : data?.metalsSource === "unavailable"
+          ? "No metal prices could be loaded from GoldAPI or Yahoo from this server. Confirm GOLDAPI_API_KEY and that the API host can reach app.goldapi.net and query1.finance.yahoo.com (some networks block Yahoo)."
+          : null;
 
   return (
     <AppScreen
       title="BellaVault live market"
-      description="Real-time precious metal quotes from GoldAPI. Open Vault for operating cash and sign in to manage records."
+      description="Precious metal quotes (GoldAPI when available, otherwise public futures). Open Vault for operating cash and sign in to manage records."
     >
       <div className="screen-banner screen-banner--muted" role="note">
         <Link href="/vault" className="screen-inline-link">
@@ -138,7 +144,9 @@ export function DashboardScreen() {
       ) : (
         <>
           {cards.length === 0 ? (
-            <p className="screen-empty">No metal cards available yet. Waiting for GoldAPI live feed.</p>
+            <p className="screen-empty">
+              No metal quotes yet. If this persists, verify the backend can reach GoldAPI and Yahoo (see note above), then restart the API.
+            </p>
           ) : (
             <div className="dashboard-market-grid">
               {cards.map(({ title, item }) => (
@@ -151,3 +159,6 @@ export function DashboardScreen() {
     </AppScreen>
   );
 }
+
+export { DashboardScreen };
+export default DashboardScreen;

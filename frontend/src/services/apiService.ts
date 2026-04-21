@@ -213,11 +213,86 @@ export interface ThirtyDayReminderPartner {
   periodIndex: number;
 }
 
+export interface ThirtyDayReminderSaving {
+  id: string;
+  accountNumber: string;
+  depositorName: string;
+  depositorContact: string;
+  depositorAddress: string;
+  openedAt: string;
+  lastActivityAt: string;
+  balance: number;
+  totalDeposited: number;
+  totalWithdrawn: number;
+  daysSinceOpened: number;
+  daysSinceLastActivity: number;
+  periodIndex: number;
+}
+
 export interface ThirtyDayRemindersResponse {
   intervalDays: number;
   borrows: ThirtyDayReminderBorrow[];
   partners: ThirtyDayReminderPartner[];
+  savings: ThirtyDayReminderSaving[];
   generatedAt: string;
+}
+
+export type SavingsAccountStatus = "active" | "closed";
+
+export interface SavingsAccount {
+  _id: string;
+  accountNumber: string;
+  depositorName: string;
+  depositorContact: string;
+  depositorAddress: string;
+  openedAt: string;
+  balance: number;
+  totalDeposited: number;
+  totalWithdrawn: number;
+  lastActivityAt: string;
+  status: SavingsAccountStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type SavingsTransactionKind = "opening" | "deposit" | "withdrawal";
+
+export interface SavingsTransaction {
+  _id: string;
+  accountId: string;
+  accountNumber: string;
+  kind: SavingsTransactionKind;
+  amount: number;
+  balanceAfter: number;
+  occurredAt: string;
+  note?: string;
+  createdAt?: string;
+}
+
+export interface CreateSavingsAccountPayload {
+  depositorName: string;
+  depositorContact: string;
+  depositorAddress: string;
+  openedAt: string;
+  initialDeposit: number;
+  note?: string;
+}
+
+export type UpdateSavingsAccountPayload = Partial<{
+  depositorName: string;
+  depositorContact: string;
+  depositorAddress: string;
+}>;
+
+export interface SavingsTransactionPayload {
+  amount: number;
+  occurredAt?: string;
+  note?: string;
+}
+
+export interface SavingsTransactionResponse {
+  account: SavingsAccount;
+  transaction: SavingsTransaction;
 }
 
 export interface CreateBorrowPayload {
@@ -479,6 +554,34 @@ export const apiService = {
       method: "DELETE",
     }),
   getThirtyDayReminders: () => request<ThirtyDayRemindersResponse>("/reminders/thirty-day"),
+  getSavingsAccounts: () => request<SavingsAccount[]>("/savings"),
+  getSavingsAccount: (id: string) => request<SavingsAccount>(`/savings/${id}`),
+  getSavingsTransactions: (id: string) =>
+    request<SavingsTransaction[]>(`/savings/${id}/transactions`),
+  createSavingsAccount: (payload: CreateSavingsAccountPayload) =>
+    request<SavingsAccount>("/savings", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateSavingsAccount: (id: string, payload: UpdateSavingsAccountPayload) =>
+    request<SavingsAccount>(`/savings/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  savingsDeposit: (id: string, payload: SavingsTransactionPayload) =>
+    request<SavingsTransactionResponse>(`/savings/${id}/deposit`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  savingsWithdraw: (id: string, payload: SavingsTransactionPayload) =>
+    request<SavingsTransactionResponse>(`/savings/${id}/withdraw`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  deleteSavingsAccount: (id: string) =>
+    request<void>(`/savings/${id}`, {
+      method: "DELETE",
+    }),
   getBorrows: () => request<Borrow[]>("/borrows"),
   createBorrow: (payload: CreateBorrowPayload) =>
     request<Borrow>("/borrows", {

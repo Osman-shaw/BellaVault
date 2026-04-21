@@ -44,6 +44,12 @@ export const actionFeedback = {
 
   vaultDeposit: () => success("Vault topped up ✓", `${hint.vault}`),
 
+  savingsOpened: () => success("Savings account opened ✓", `Depositor is on file. ${hint.trail}`),
+  savingsUpdated: () => success("Depositor updated ✓", `Details refreshed. ${hint.clarity}`),
+  savingsDeposit: () => success("Deposit recorded ✓", `Balance adjusted. ${hint.daily}`),
+  savingsWithdrawal: () => success("Withdrawal recorded ✓", `Balance adjusted. ${hint.daily}`),
+  savingsClosed: () => success("Savings account closed ✓", `${hint.space}`),
+
   signedOut: () => success("Signed out ✓", "See you soon — your vault will be right here when you return."),
 
   /** Pass through API / validation text with a friendly frame. */

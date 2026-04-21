@@ -30,6 +30,11 @@ const PERMISSIONS = {
   "borrows:delete": [ROLES.ADMIN, ROLES.SECRETARY],
   "vault:read": [ROLES.ADMIN, ROLES.SECRETARY, ROLES.ASSOCIATE_DIRECTOR],
   "vault:deposit": [ROLES.ADMIN, ROLES.SECRETARY],
+  "savings:read": [ROLES.ADMIN, ROLES.SECRETARY, ROLES.ASSOCIATE_DIRECTOR],
+  "savings:create": [ROLES.ADMIN, ROLES.SECRETARY],
+  "savings:update": [ROLES.ADMIN, ROLES.SECRETARY],
+  "savings:transact": [ROLES.ADMIN, ROLES.SECRETARY],
+  "savings:delete": [ROLES.ADMIN],
   "market:diagnostics": [ROLES.ADMIN],
 };
 

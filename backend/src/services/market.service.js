@@ -15,6 +15,14 @@ function zeroMarketItem(symbol, name, currency = "USD") {
   };
 }
 
+/** Yahoo often blocks bare Node fetch; browser-like headers improve success from servers / CI. */
+const YAHOO_FETCH_HEADERS = {
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+};
+
 async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -26,26 +34,74 @@ async function fetchWithTimeout(url, options) {
   }
 }
 
+/**
+ * Yahoo chart API — often works when v7 /quote returns empty or 401 from datacenters.
+ * @see https://query1.finance.yahoo.com/v8/finance/chart/GC=F
+ */
+async function fetchYahooChartQuote(symbol) {
+  const encoded = encodeURIComponent(symbol);
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=5d`;
+  const response = await fetchWithTimeout(url, { headers: { ...YAHOO_FETCH_HEADERS } });
+  if (!response.ok) throw new Error(`Yahoo chart ${response.status}`);
+  const data = await response.json();
+  const result = data?.chart?.result?.[0];
+  if (!result) throw new Error("No chart result");
+  const meta = result.meta || {};
+  let price = meta.regularMarketPrice ?? meta.previousClose ?? meta.chartPreviousClose;
+  if (price == null || Number(price) <= 0) {
+    const closes = result.indicators?.quote?.[0]?.close;
+    const last = Array.isArray(closes) ? closes.filter((x) => x != null && Number(x) > 0).pop() : null;
+    price = last;
+  }
+  if (price == null || Number.isNaN(Number(price))) throw new Error("No chart price");
+  const tsSec = meta.regularMarketTime != null ? Number(meta.regularMarketTime) : Math.floor(Date.now() / 1000);
+  return {
+    symbol,
+    name: meta.shortName || meta.longName || symbol,
+    price: Number(price),
+    change: Number(meta.regularMarketChange ?? 0),
+    changePercent: Number(meta.regularMarketChangePercent ?? 0),
+    currency: meta.currency || "USD",
+    updatedAt: tsSec > 1e12 ? tsSec : tsSec * 1000,
+  };
+}
+
 /** Public quote source — no API key (Yahoo unofficial quote API). */
 async function fetchYahooQuote(symbol) {
   const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(symbol)}`;
-  const response = await fetchWithTimeout(url);
+  const response = await fetchWithTimeout(url, { headers: { ...YAHOO_FETCH_HEADERS } });
   if (!response.ok) throw new Error("Failed to fetch market quote");
   const data = await response.json();
   const quote = data?.quoteResponse?.result?.[0];
   if (!quote) throw new Error("No quote result");
+  const price = quote.regularMarketPrice ?? quote.postMarketPrice ?? quote.preMarketPrice;
+  if (price == null || Number(price) <= 0) throw new Error("No usable price");
   return {
     symbol,
     name: quote.shortName || quote.longName || symbol,
-    price: quote.regularMarketPrice ?? 0,
-    change: quote.regularMarketChange ?? 0,
-    changePercent: quote.regularMarketChangePercent ?? 0,
+    price: Number(price),
+    change: Number(quote.regularMarketChange ?? 0),
+    changePercent: Number(quote.regularMarketChangePercent ?? 0),
     currency: quote.currency || "USD",
     updatedAt: quote.regularMarketTime ? quote.regularMarketTime * 1000 : Date.now(),
   };
 }
 
-/** GoldAPI.io / goldapi.net — key must stay server-side in GOLDAPI_API_KEY. */
+/** Try v7 quote, then v8 chart (more reliable for futures symbols from servers). */
+async function fetchYahooQuoteResilient(symbol) {
+  try {
+    return await fetchYahooQuote(symbol);
+  } catch {
+    return await fetchYahooChartQuote(symbol);
+  }
+}
+
+/**
+ * GoldAPI.io (app.goldapi.net) — documented pattern:
+ *   GET /price/XAU/USD?x-api-key=KEY
+ *   GET /price/XAU?x-api-key=KEY
+ * See https://goldapi.net/docs — key stays server-side (GOLDAPI_API_KEY).
+ */
 async function fetchGoldApiMetal(metal, currency) {
   const key = env.goldapiApiKey;
   if (!key || !String(key).trim()) {
@@ -53,71 +109,77 @@ async function fetchGoldApiMetal(metal, currency) {
   }
   const base = (env.goldapiBaseUrl || GOLDAPI_DEFAULT_BASE).replace(/\/$/, "");
   const token = String(key).trim();
+  const metalUpper = String(metal).toUpperCase();
+  const currencyUpper = String(currency).toUpperCase();
   const metalLower = String(metal).toLowerCase();
   const currencyLower = String(currency).toLowerCase();
-  const primaryEndpoint = `${base}/api/price/${metalLower}/${currencyLower}`;
-  const fallbackEndpointWithCurrency = `${base}/price/${metal}/${currency}?x-api-key=${encodeURIComponent(token)}`;
-  const fallbackEndpointMetalOnly = `${base}/price/${metal}?x-api-key=${encodeURIComponent(token)}`;
 
-  // Primary mode requested by integration: /api/price/xau/usd with x-api-key header.
-  let response = await fetchWithTimeout(primaryEndpoint, {
-    headers: {
-      "x-api-key": token,
-      "Content-Type": "application/json",
-      Accept: "application/json",
+  const jsonHeaders = { Accept: "application/json", "Content-Type": "application/json" };
+
+  /** Try in order until one returns HTTP 200 + JSON. Official docs use query-param auth first. */
+  const attempts = [
+    `${base}/price/${metalUpper}/${currencyUpper}?x-api-key=${encodeURIComponent(token)}`,
+    `${base}/price/${metalUpper}?x-api-key=${encodeURIComponent(token)}`,
+    {
+      url: `${base}/price/${metalUpper}/${currencyUpper}`,
+      headers: { ...jsonHeaders, "x-api-key": token },
     },
-  });
+    {
+      url: `${base}/price/${metalUpper}`,
+      headers: { ...jsonHeaders, "x-api-key": token },
+    },
+    {
+      url: `${base}/api/price/${metalLower}/${currencyLower}`,
+      headers: { ...jsonHeaders, "x-api-key": token },
+    },
+    {
+      url: `${base}/api/price/${metalUpper}/${currencyUpper}`,
+      headers: { ...jsonHeaders, "x-api-key": token },
+    },
+  ];
 
-  // Backward compatibility fallback: old query-param paths.
-  if (!response.ok) {
-    response = await fetchWithTimeout(fallbackEndpointWithCurrency, {
-      headers: { Accept: "application/json" },
-    });
+  let response;
+  let lastStatus = 0;
+  let lastSnippet = "";
+  for (const attempt of attempts) {
+    const url = typeof attempt === "string" ? attempt : attempt.url;
+    const headers = typeof attempt === "string" ? { Accept: "application/json" } : attempt.headers;
+    response = await fetchWithTimeout(url, { headers });
+    lastStatus = response.status;
+    if (response.ok) break;
+    lastSnippet = await response.text().catch(() => "");
   }
+
   if (!response.ok) {
-    response = await fetchWithTimeout(fallbackEndpointMetalOnly, {
-      headers: { Accept: "application/json" },
-    });
-  }
-  if (!response.ok) {
-    // One final retry of primary with uppercase path segments for provider variance.
-    response = await fetchWithTimeout(`${base}/api/price/${metal}/${currency}`, {
-      headers: {
-        "x-api-key": token,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-    });
-  }
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    throw new Error(`GoldAPI ${metal}/${currency}: ${response.status} ${text.slice(0, 120)}`);
+    throw new Error(`GoldAPI ${metal}/${currency}: ${lastStatus} ${lastSnippet.slice(0, 120)}`);
   }
   const data = await response.json();
-  const ts = data.timestamp != null ? Number(data.timestamp) : Math.floor(Date.now() / 1000);
+  const tsRaw = data.timestamp != null ? Number(data.timestamp) : Math.floor(Date.now() / 1000);
+  // Provider returns Unix seconds; guard against ms if they ever send 13-digit values.
+  const tsSec = tsRaw > 1e12 ? Math.floor(tsRaw / 1000) : tsRaw;
   return {
-    symbol: `${metal}/${currency}`,
+    symbol: `${metalUpper}/${currencyUpper}`,
     name:
-      metal === "XAU"
+      metalUpper === "XAU"
         ? "Gold spot (USD)"
-        : metal === "XAG"
+        : metalUpper === "XAG"
           ? "Silver spot (USD)"
-          : metal === "XPT"
+          : metalUpper === "XPT"
             ? "Platinum spot (USD)"
-            : metal === "XPD"
+            : metalUpper === "XPD"
               ? "Palladium spot (USD)"
-              : `${metal} (${currency})`,
+              : `${metalUpper} (${currencyUpper})`,
     price: Number(data.price) || 0,
-    change: Number(data.ch) || 0,
-    changePercent: Number(data.chp) || 0,
-    currency: data.currency || currency,
-    updatedAt: ts * 1000,
+    change: Number(data.ch ?? data.change ?? 0) || 0,
+    changePercent: Number(data.chp ?? data.change_percent ?? 0) || 0,
+    currency: data.currency || currencyUpper,
+    updatedAt: tsSec * 1000,
   };
 }
 
 async function safeYahoo(symbol) {
   try {
-    return await fetchYahooQuote(symbol);
+    return await fetchYahooQuoteResilient(symbol);
   } catch {
     return null;
   }
@@ -133,7 +195,7 @@ async function safeGoldApi(metal, currency) {
 
 async function safeYahooMetal(symbol, label) {
   const item = await safeYahoo(symbol);
-  if (!item) return null;
+  if (!item || Number(item.price) <= 0) return null;
   return {
     ...item,
     name: label,
@@ -243,12 +305,21 @@ async function getLiveMarketData() {
   if (!platinum) platinum = yahooPlatinum;
   if (!palladium) palladium = yahooPalladium;
 
+  const metalQuoted = (m) => m && Number(m.price) > 0;
+  const anyMetalQuoted =
+    metalQuoted(gold) || metalQuoted(silver) || metalQuoted(platinum) || metalQuoted(palladium);
+
+  let metalsSource;
+  if (usedGoldApi) metalsSource = "goldapi";
+  else if (anyMetalQuoted) metalsSource = "yahoo";
+  else metalsSource = "unavailable";
+
   const out = {
     gold: gold || zeroMarketItem("GC=F", "Gold"),
     forex: forex || zeroMarketItem("EURUSD=X", "EUR/USD"),
     sp500: sp500 || zeroMarketItem("^GSPC", "S&P 500"),
     nasdaq: nasdaq || zeroMarketItem("^IXIC", "NASDAQ"),
-    metalsSource: usedGoldApi ? "goldapi" : "yahoo",
+    metalsSource,
     goldapiConfigured: hasGoldApi,
   };
 

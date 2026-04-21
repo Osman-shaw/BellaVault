@@ -8,6 +8,7 @@ const saleRoutes = require("./sale.routes");
 const reportsRoutes = require("./reports.routes");
 const borrowRoutes = require("./borrow.routes");
 const reminderRoutes = require("./reminder.routes");
+const savingsRoutes = require("./savings.routes");
 const vaultRoutes = require("./vault.routes");
 const { dashboard } = require("../controllers/deal.controller");
 const { requirePermission } = require("../middleware/authorize");
@@ -29,6 +30,7 @@ router.use("/sales", saleRoutes);
 router.use("/reports", reportsRoutes);
 router.use("/borrows", borrowRoutes);
 router.use("/reminders", reminderRoutes);
+router.use("/savings", savingsRoutes);
 router.use("/vault", vaultRoutes);
 
 module.exports = router;

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { apiService } from "@/services/apiService";
@@ -9,7 +10,12 @@ import { useRole } from "@/state/useRole";
 import { notifyInfo } from "@/utils/notify";
 import { actionFeedback } from "@/utils/actionFeedback";
 import { BellaVaultMark } from "@/components/brand/BellaVaultMark";
-import { ThirtyDayReminders } from "@/components/notifications/ThirtyDayReminders";
+
+/** Client-only load avoids a bad Flight/lazy chunk resolving to undefined in dev. */
+const ThirtyDayReminders = dynamic(
+  () => import("@/components/notifications/ThirtyDayReminders"),
+  { ssr: false, loading: () => null }
+);
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -18,6 +24,7 @@ const navItems = [
   { href: "/purchases", label: "Gold purchases" },
   { href: "/sales", label: "Sales" },
   { href: "/borrows", label: "Cash borrows" },
+  { href: "/savings", label: "Savings" },
   { href: "/reports", label: "Reports" },
   { href: "/entities", label: "Partners" },
 ];

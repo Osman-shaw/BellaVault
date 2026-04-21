@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Borrow = require("../model/borrow.model");
 const Entity = require("../model/entity.model");
 const PartnerLedger = require("../model/partnerLedger.model");
+const SavingsAccount = require("../model/savingsAccount.model");
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -85,18 +86,50 @@ async function getPartnerReminderRows(tenantId, now = new Date(), intervalDays =
     .filter((row) => row.ledgerEntryCount > 0);
 }
 
+async function getSavingsReminderRows(tenantId, now = new Date(), intervalDays = 30) {
+  const accounts = await SavingsAccount.find({ tenantId, closedAt: null })
+    .sort({ openedAt: 1 })
+    .lean();
+  return accounts
+    .map((a) => {
+      const openedAt = new Date(a.openedAt);
+      const lastActivityAt = new Date(a.lastActivityAt || a.openedAt);
+      const balance = Math.round((Number(a.balance) || 0) * 100) / 100;
+      const totalDeposited = Math.round((Number(a.totalDeposited) || 0) * 100) / 100;
+      const totalWithdrawn = Math.round((Number(a.totalWithdrawn) || 0) * 100) / 100;
+      return {
+        id: a._id.toString(),
+        accountNumber: a.accountNumber,
+        depositorName: a.depositorName,
+        depositorContact: a.depositorContact,
+        depositorAddress: a.depositorAddress,
+        openedAt: openedAt.toISOString(),
+        lastActivityAt: lastActivityAt.toISOString(),
+        balance,
+        totalDeposited,
+        totalWithdrawn,
+        daysSinceOpened: Math.max(0, daysBetween(openedAt, now)),
+        daysSinceLastActivity: Math.max(0, daysBetween(lastActivityAt, now)),
+        periodIndex: Math.max(0, periodIndex(openedAt, now, intervalDays)),
+      };
+    })
+    .filter((row) => row.balance > 0);
+}
+
 async function getThirtyDayReminders(tenantId, options = {}) {
   const intervalDays = options.intervalDays ?? 30;
   const now = options.now ? new Date(options.now) : new Date();
-  const [borrows, partners] = await Promise.all([
+  const [borrows, partners, savings] = await Promise.all([
     getBorrowReminderRows(tenantId, now, intervalDays),
     getPartnerReminderRows(tenantId, now, intervalDays),
+    getSavingsReminderRows(tenantId, now, intervalDays),
   ]);
-  return { intervalDays, borrows, partners, generatedAt: now.toISOString() };
+  return { intervalDays, borrows, partners, savings, generatedAt: now.toISOString() };
 }
 
 module.exports = {
   getThirtyDayReminders,
   getBorrowReminderRows,
   getPartnerReminderRows,
+  getSavingsReminderRows,
 };

@@ -102,6 +102,26 @@ export function ThirtyDayReminders() {
         delayMs += 650;
       }
 
+      for (const s of data.savings ?? []) {
+        if (s.periodIndex < 1) continue;
+        const last = getLastAcknowledgedPeriod(tenantSlug, "saving", s.id);
+        if (s.periodIndex <= last) continue;
+        const openedLabel = formatDateUtc(s.openedAt);
+        const savingId = s.id;
+        const period = s.periodIndex;
+        toShow.push({
+          delayMs,
+          fn: () => {
+            notifyInfo(
+              `${s.depositorName} (${s.accountNumber}) · You are still holding ${moneyLe(s.balance)} since ${openedLabel} (${s.daysSinceOpened} days ago). Contact: ${s.depositorContact}.`,
+              "Savings depositor · 30-day check-in"
+            );
+            setLastAcknowledgedPeriod(tenantSlug, "saving", savingId, period);
+          },
+        });
+        delayMs += 650;
+      }
+
       for (const item of toShow) {
         window.setTimeout(item.fn, item.delayMs);
       }
@@ -115,3 +135,5 @@ export function ThirtyDayReminders() {
 
   return null;
 }
+
+export default ThirtyDayReminders;
