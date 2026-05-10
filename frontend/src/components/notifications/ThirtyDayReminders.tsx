@@ -17,7 +17,7 @@ function moneyLe(n: number) {
  * After login, loads 30-day reminder payloads and shows a toast once per new
  * completed 30-day period per borrow / partner (tracked in localStorage).
  */
-export function ThirtyDayReminders() {
+export default function ThirtyDayReminders() {
   const { isAuthenticated, role, user } = useRole();
   const completedForAccessToken = useRef<string | null>(null);
   const inFlightToken = useRef<string | null>(null);
@@ -135,5 +135,3 @@ export function ThirtyDayReminders() {
 
   return null;
 }
-
-export default ThirtyDayReminders;

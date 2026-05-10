@@ -1,4 +1,4 @@
-import { notifyError, notifySuccess } from "@/utils/notify";
+import { notifyError, notifySuccess } from "./notify";
 
 /** Short headline shown bold; body is the warm, human line underneath. */
 function success(headline: string, body: string) {

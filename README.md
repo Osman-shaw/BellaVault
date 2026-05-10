@@ -33,7 +33,8 @@ Key backend areas:
 ## Configuration (do not commit secrets)
 
 1. Copy `backend/.env.example` to `backend/.env`.
-2. Set variables **only** in `backend/.env` (and optional frontend env files). **Never commit** real `.env` files or paste live secrets into the README.
+2. Optional: copy `frontend/.env.example` to `frontend/.env.local` when running Next.js outside Docker and you need a non-default API URL.
+3. Set variables **only** in `backend/.env` (and optional frontend env files). **Never commit** real `.env` files or paste live secrets into the README.
 
 ### Backend environment variables
 
@@ -80,8 +81,9 @@ Ensure MongoDB is running and `MONGODB_URI` in `backend/.env` points to your dat
 
 ## Docker (production-like)
 
-1. Provide `backend/.env` (same rules as above; no secrets in git).
-2. From the repo root (if `docker-compose.yml` is present):
+1. Copy `backend/.env.example` to `backend/.env` and set secrets (`JWT_SECRET`, etc.); `docker compose` overrides `MONGODB_URI` to use the bundled MongoDB service (`mongodb://mongo:27017/bellavault`).
+2. Optional: copy `compose.env.example` to `.env` in the **repo root** if you need to change `NEXT_PUBLIC_API_URL` from the default `http://localhost:4000/api` (must be a URL the **browser** can reach—see table above). Rebuild the frontend image after changing it.
+3. From the repo root:
 
 ```bash
 docker compose up --build -d
